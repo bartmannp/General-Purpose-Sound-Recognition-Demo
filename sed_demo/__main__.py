@@ -14,6 +14,7 @@ python -m sed_demo TOP_K=10 TABLE_FONTSIZE=25
 
 from threading import Thread
 import os
+import sys
 from dataclasses import dataclass
 from typing import Optional
 #
@@ -97,7 +98,8 @@ class DemoApp(DemoFrontend):
         num_audioset_classes = len(all_labels)
         self.model = Cnn9_GMP_64x64(num_audioset_classes)
         checkpoint = torch.load(model_path,
-                                map_location=lambda storage, loc: storage)
+                                map_location=lambda storage, loc: storage,
+                                weights_only=False)
         self.model.load_state_dict(checkpoint["model"])
         # 3. Inference: periodically read the input stream with the model
         self.inference = AudioModelInference(
@@ -204,25 +206,31 @@ class ConfDef:
 # ##############################################################################
 if __name__ == '__main__':
 
-    CONF = OmegaConf.structured(ConfDef())
-    cli_conf = OmegaConf.from_cli()
-    CONF = OmegaConf.merge(CONF, cli_conf)
-    print("\n\nCONFIGURATION:")
-    print(OmegaConf.to_yaml(CONF), end="\n\n\n")
+  if sys.version_info[:2] != (3, 12):
+    print(
+      "WARNING: This project is standardized on Python 3.12. "
+      f"Current interpreter: {sys.version.split()[0]}"
+    )
 
-    _, _, all_labels = load_csv_labels(CONF.ALL_LABELS_PATH)
-    if CONF.SUBSET_LABELS_PATH is None:
-        subset_labels = None
-    else:
-        _, _, subset_labels = load_csv_labels(CONF.SUBSET_LABELS_PATH)
-    logo_paths = [SURREY_LOGO_PATH, CVSSP_LOGO_PATH, EPSRC_LOGO_PATH]
+  CONF = OmegaConf.structured(ConfDef())
+  cli_conf = OmegaConf.from_cli()
+  CONF = OmegaConf.merge(CONF, cli_conf)
+  print("\n\nCONFIGURATION:")
+  print(OmegaConf.to_yaml(CONF), end="\n\n\n")
 
-    demo = DemoApp(
-        AI4S_BANNER_PATH, logo_paths, CONF.MODEL_PATH,
-        all_labels, subset_labels,
-        CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
-        CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
-        CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
-        CONF.TOP_K, CONF.TITLE_FONTSIZE, CONF.TABLE_FONTSIZE)
+  _, _, all_labels = load_csv_labels(CONF.ALL_LABELS_PATH)
+  if CONF.SUBSET_LABELS_PATH is None:
+    subset_labels = None
+  else:
+    _, _, subset_labels = load_csv_labels(CONF.SUBSET_LABELS_PATH)
+  logo_paths = [SURREY_LOGO_PATH, CVSSP_LOGO_PATH, EPSRC_LOGO_PATH]
 
-    demo.mainloop()
+  demo = DemoApp(
+    AI4S_BANNER_PATH, logo_paths, CONF.MODEL_PATH,
+    all_labels, subset_labels,
+    CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
+    CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
+    CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
+    CONF.TOP_K, CONF.TITLE_FONTSIZE, CONF.TABLE_FONTSIZE)
+
+  demo.mainloop()

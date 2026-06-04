@@ -38,15 +38,39 @@ At the moment, no `pip` installation is available. Clone this repo into `<repo_r
 https://github.com/yinkalario/General-Purpose-Sound-Recognition-Demo
 ```
 
-### Software dependencies:
+### System dependencies (Debian/Ubuntu):
 
-We recommend using Anaconda to install the dependencies as follows:
+Before installing Python packages, install the required system libraries:
 
 ```
-conda create -n panns python=3.7
+sudo apt install portaudio19-dev python3-tk
+```
+
+* `portaudio19-dev` — required to build PyAudio
+* `python3-tk` — required for the Tkinter GUI
+
+### Python dependencies:
+
+This project requires **Python 3.12**. We recommend using [uv](https://docs.astral.sh/uv/) for environment and dependency management.
+
+**Install uv** (if not already installed):
+
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then install all dependencies and run the app via `uv` (it will create a virtual environment automatically):
+
+```
+uv run -m sed_demo MODEL_PATH='<model_location>'
+```
+
+Alternatively, using conda/pip:
+
+```
+conda create -n panns python=3.12
 conda activate panns
 pip install -r requirements.txt
-conda install -c anaconda pyaudio
 ```
 
 A comprehensive list of working dependencies can be found in the [full_dependencies.txt](assets/full_dependencies.txt) file.
@@ -66,11 +90,16 @@ More models can be found [here](https://zenodo.org/record/3576599) and [here](ht
 
 # RUN
 
-Assuming our command line is on `<repo_root>`, the `panns` environment is active and the model has been downloaded into `<repo_root>`, the following command should run the GUI with default parameters (tested on Ubuntu20.04):
-
+Assuming the model has been downloaded and `<repo_root>` is the current directory:
 
 ```
-python -m sed_demo MODEL_PATH='Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth?download=1'
+uv run -m sed_demo MODEL_PATH='<model_location>'
+```
+
+Or, if using conda/pip:
+
+```
+python -m sed_demo MODEL_PATH='<model_location>'
 ```
 
 Note that the terminal will print all available parameters and their values upon start. The syntax to alter them is the same as with `MODEL_PATH`, e.g. to change the number of classes displayed to 10, add `TOP_K=10`.

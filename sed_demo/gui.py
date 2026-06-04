@@ -14,6 +14,10 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 
 
+# Pillow>=10 removed Image.ANTIALIAS; keep compatibility with both old/new.
+RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
+
+
 # ##############################################################################
 # # HELPERS
 # ##############################################################################
@@ -60,7 +64,7 @@ class ResponsiveImgCanvas(tk.Canvas):
             new_h = max_h
             new_w = round((float(new_h) / self.ori_h) * self.ori_w)
         # resize image and return it
-        img = self.ori_img.resize((new_w, new_h), Image.ANTIALIAS)
+        img = self.ori_img.resize((new_w, new_h), RESAMPLE_LANCZOS)
         img = ImageTk.PhotoImage(img)
         return img, (new_w, new_h)
 

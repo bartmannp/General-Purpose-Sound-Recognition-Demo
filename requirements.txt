@@ -1,9 +1,8 @@
-matplotlib==3.0.3
-soundfile==0.10.3.post1
-librosa==0.6.3
-torch==1.0.1.post2
-torchlibrosa==0.0.4
-numba==0.45
-omegaconf==2.1.1
-llvmlite==0.32.1
-Pillow==8.4.0
+matplotlib>=3.8,<3.11
+soundfile>=0.12.1,<0.14
+librosa>=0.10.2,<0.11
+torch>=2.3,<2.6
+omegaconf>=2.3,<3.0
+Pillow>=10.0,<12
+numpy>=1.26,<3
+PyAudio>=0.2.14
