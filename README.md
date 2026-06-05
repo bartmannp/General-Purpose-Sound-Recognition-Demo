@@ -35,7 +35,7 @@ Yin Cao, Qiuqiang Kong, Andres Fernandez, Christian Kroos, Turab Iqbal, Wenwu Wa
 At the moment, no `pip` installation is available. Clone this repo into `<repo_root>` via:
 
 ```
-https://github.com/yinkalario/General-Purpose-Sound-Recognition-Demo
+https://github.com/bartmannp/General-Purpose-Sound-Recognition-Demo
 ```
 
 ### System dependencies (Debian/Ubuntu):
