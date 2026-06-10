@@ -38,20 +38,21 @@ At the moment, no `pip` installation is available. Clone this repo into `<repo_r
 https://github.com/bartmannp/General-Purpose-Sound-Recognition-Demo
 ```
 
-### System dependencies (Debian/Ubuntu):
+### System dependencies (Debian/Ubuntu/Raspberry Pi OS):
 
 Before installing Python packages, install the required system libraries:
 
 ```
-sudo apt install portaudio19-dev python3-tk
+sudo apt install portaudio19-dev python3-tk libsndfile1
 ```
 
 * `portaudio19-dev` — required to build PyAudio
 * `python3-tk` — required for the Tkinter GUI
+* `libsndfile1` — required by the audio loading stack used by `librosa`
 
 ### Python dependencies:
 
-This project requires **Python 3.12**. We recommend using [uv](https://docs.astral.sh/uv/) for environment and dependency management.
+This project supports **Python 3.11 and 3.12**. We recommend using [uv](https://docs.astral.sh/uv/) for environment and dependency management.
 
 **Install uv** (if not already installed):
 
@@ -63,6 +64,10 @@ Then install all dependencies and run the app via `uv` (it will create a virtual
 
 ```
 uv run -m sed_demo MODEL_PATH='<model_location>'
+
+On Raspberry Pi, install an ARM-compatible PyTorch wheel first if `uv` or `pip`
+cannot resolve one automatically for your platform. A 64-bit Raspberry Pi OS
+image is strongly recommended.
 ```
 
 Alternatively, using conda/pip:
@@ -71,6 +76,10 @@ Alternatively, using conda/pip:
 conda create -n panns python=3.12
 conda activate panns
 pip install -r requirements.txt
+
+If PyTorch is not available from the default index on your Pi, install it from
+the wheel source recommended for your Raspberry Pi OS and Python version, then
+install the remaining packages.
 ```
 
 A comprehensive list of working dependencies can be found in the [full_dependencies.txt](assets/full_dependencies.txt) file.
@@ -103,6 +112,47 @@ python -m sed_demo MODEL_PATH='<model_location>'
 ```
 
 Note that the terminal will print all available parameters and their values upon start. The syntax to alter them is the same as with `MODEL_PATH`, e.g. to change the number of classes displayed to 10, add `TOP_K=10`.
+
+### Raspberry Pi notes
+
+The demo can run on Raspberry Pi without code changes to the model itself, but
+there are a few practical constraints:
+
+* Use a **64-bit Raspberry Pi OS** image.
+* Prefer a **Raspberry Pi 5** for smoother real-time inference. Older models
+	may struggle to keep up.
+* A USB microphone or other working input device must be available to PortAudio.
+* The Tk GUI requires a desktop session. For console-only deployments, use the
+	new headless mode.
+
+Headless mode avoids importing Tkinter and prints the top predictions to the
+terminal instead of opening a window:
+
+```
+uv run -m sed_demo MODEL_PATH='<model_location>' HEADLESS=True
+```
+
+By default, the app uses the system default input device and prints the chosen
+device on startup. If you want to choose interactively at launch time, enable:
+
+```
+uv run -m sed_demo MODEL_PATH='<model_location>' HEADLESS=True SELECT_AUDIO_DEVICE=True
+```
+
+To pin a device without opening the selector, pass its PortAudio index:
+
+```
+uv run -m sed_demo MODEL_PATH='<model_location>' HEADLESS=True AUDIO_DEVICE_INDEX=2
+```
+
+You can tune headless output with:
+
+* `HEADLESS_PRINT_INTERVAL=1.0` to control how often predictions are printed.
+* `HEADLESS_MIN_CONFIDENCE=0.15` to suppress low-confidence results.
+* `HEADLESS_LOG_PATH='sound-recognition.log'` to append timestamped output to a log file.
+
+Each headless output line is timestamped, both in the terminal and in the
+optional log file.
 
 
 ---
