@@ -176,6 +176,9 @@ class HeadlessDemoApp:
 
   def run(self):
     if self.log_path:
+      log_dir = os.path.dirname(os.path.abspath(self.log_path))
+      if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
       self.log_handle = open(self.log_path, "a", encoding="utf-8")
       self._emit(f"Logging to {self.log_path}")
     self._emit("Headless mode active. Press Ctrl+C to stop.")
