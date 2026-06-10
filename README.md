@@ -147,6 +147,9 @@ uv run -m sed_demo MODEL_PATH='<model_location>' HEADLESS=True AUDIO_DEVICE_INDE
 
 You can tune headless output with:
 
+* `INFERENCE_INTERVAL=0.25` to limit how often the model runs. Increasing this
+	value lowers CPU usage on Raspberry Pi at the cost of slower UI/console
+	updates.
 * `HEADLESS_PRINT_INTERVAL=1.0` to control how often predictions are printed.
 * `HEADLESS_MIN_CONFIDENCE=0.15` to suppress low-confidence results.
 * `HEADLESS_LOG_PATH='sound-recognition.log'` to append timestamped output to a log file.

@@ -81,7 +81,8 @@ class AudioModelInference:
                                             n_fft=winsize,
                                             n_mels=n_mels,
                                             fmin=mel_fmin,
-                                            fmax=mel_fmax)
+                                            fmax=mel_fmax).astype(np.float32,
+                                                                   copy=False)
 
     def wav_to_logmel(self, wav_arr):
         """
@@ -109,9 +110,10 @@ class AudioModelInference:
         :returns: Predictions with shape ``(num_output_classes,)``.
         """
         logmel_spec = self.wav_to_logmel(wav_arr)  # (t, nbins)
-        with torch.no_grad():
+        with torch.inference_mode():
             logmel_spec = torch.from_numpy(
-                logmel_spec.astype(np.float32)).unsqueeze(0)  # (1, t, nbins)
+                logmel_spec.astype(np.float32, copy=False)).unsqueeze(0)
+            # (1, t, nbins)
             preds = self.model(logmel_spec).to("cpu").numpy().squeeze(axis=0)
         return preds  # shape: (num_classes,)
 

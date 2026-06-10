@@ -55,12 +55,24 @@ def build_runtime(model_path, all_labels, tracked_labels=None,
   return audiostream, inference, tracker
 
 
+def wait_for_next_inference(last_inference_at, inference_interval):
+  if inference_interval <= 0:
+    return time.monotonic()
+
+  now = time.monotonic()
+  remaining = inference_interval - (now - last_inference_at)
+  if remaining > 0:
+    time.sleep(remaining)
+    return time.monotonic()
+  return now
+
+
 def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
            tracked_labels=None, samplerate=32000,
            audio_chunk_length=1024, ringbuffer_length=40000,
            model_winsize=1024, stft_hopsize=512,
            stft_window="hann", n_mels=64, mel_fmin=50,
-           mel_fmax=14000, top_k=5, title_fontsize=22,
+           mel_fmax=14000, inference_interval=0.25, top_k=5, title_fontsize=22,
            table_fontsize=18, input_device_index=None):
   from sed_demo.gui import DemoFrontend
 
@@ -84,11 +96,15 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
         n_mels, mel_fmin, mel_fmax, input_device_index)
       self.audiostream, self.inference, self.tracker = runtime
       self.top_k = top_k
+      self.inference_interval = inference_interval
       self.thread = None
       self.protocol("WM_DELETE_WINDOW", self.exit_demo)
 
     def inference_loop(self):
+      last_inference_at = 0.0
       while self.is_running():
+        last_inference_at = wait_for_next_inference(
+          last_inference_at, self.inference_interval)
         dl_inference = self.inference(self.audiostream.read())
         top_preds = self.tracker(dl_inference, self.top_k)
         for label, bar, (clsname, pval) in zip(
@@ -131,7 +147,7 @@ class HeadlessDemoApp:
          samplerate=32000, audio_chunk_length=1024,
          ringbuffer_length=40000, model_winsize=1024,
          stft_hopsize=512, stft_window="hann", n_mels=64,
-         mel_fmin=50, mel_fmax=14000, top_k=5,
+      mel_fmin=50, mel_fmax=14000, inference_interval=0.25, top_k=5,
          print_interval=1.0, min_confidence=0.15,
          log_path=None, input_device_index=None):
     runtime = build_runtime(
@@ -141,6 +157,7 @@ class HeadlessDemoApp:
       n_mels, mel_fmin, mel_fmax, input_device_index)
     self.audiostream, self.inference, self.tracker = runtime
     self.top_k = top_k
+    self.inference_interval = inference_interval
     self.print_interval = print_interval
     self.min_confidence = min_confidence
     self.log_path = log_path
@@ -187,7 +204,10 @@ class HeadlessDemoApp:
     last_print = 0.0
     self.audiostream.start()
     try:
+      last_inference_at = 0.0
       while True:
+        last_inference_at = wait_for_next_inference(
+          last_inference_at, self.inference_interval)
         predictions = self.tracker(
           self.inference(self.audiostream.read()), self.top_k)
         output = self._format_predictions(predictions)
@@ -270,6 +290,7 @@ class ConfDef:
     N_MELS: int = 64
     MEL_FMIN: int = 50
     MEL_FMAX: int = 14000
+    INFERENCE_INTERVAL: float = 0.25
     AUDIO_DEVICE_INDEX: Optional[int] = None
     SELECT_AUDIO_DEVICE: bool = False
     HEADLESS: bool = False
@@ -326,6 +347,7 @@ if __name__ == '__main__':
       CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
       CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
       CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
+      CONF.INFERENCE_INTERVAL,
       CONF.TOP_K, CONF.HEADLESS_PRINT_INTERVAL,
       CONF.HEADLESS_MIN_CONFIDENCE, CONF.HEADLESS_LOG_PATH,
       audio_device_index)
@@ -338,6 +360,7 @@ if __name__ == '__main__':
         CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
         CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
         CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
+        CONF.INFERENCE_INTERVAL,
         CONF.TOP_K, CONF.TITLE_FONTSIZE, CONF.TABLE_FONTSIZE,
         audio_device_index)
     except ImportError as exc:
