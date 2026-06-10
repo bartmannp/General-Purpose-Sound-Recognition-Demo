@@ -7,8 +7,28 @@ This module contains functionality to handle the real-time input audio process.
 """
 
 
+from contextlib import contextmanager
+import os
 import numpy as np
 import pyaudio
+
+
+@contextmanager
+def suppress_stderr():
+    """
+    Temporarily redirect process stderr to os.devnull.
+
+    PortAudio probing on Linux can emit a large amount of ALSA/JACK noise even
+    when device discovery succeeds. This keeps normal startup output readable.
+    """
+    stderr_fd = os.dup(2)
+    try:
+        with open(os.devnull, "w", encoding="utf-8") as devnull:
+            os.dup2(devnull.fileno(), 2)
+            yield
+    finally:
+        os.dup2(stderr_fd, 2)
+        os.close(stderr_fd)
 
 
 # ##############################################################################
@@ -73,8 +93,9 @@ class AsynchAudioInputStream:
         self.rb_length = ringbuffer_length
         self.input_device_index = input_device_index
         # setup recording stream
-        self.pa = pyaudio.PyAudio()
-        self.input_device_info = self._get_selected_device_info()
+        with suppress_stderr():
+            self.pa = pyaudio.PyAudio()
+            self.input_device_info = self._get_selected_device_info()
         self.stream = self.pa.open(format=self.PYAUDIO_DTYPE,
                                    channels=self.IN_CHANNELS,
                                    rate=samplerate,
@@ -94,7 +115,8 @@ class AsynchAudioInputStream:
 
     @staticmethod
     def get_input_devices():
-        pa = pyaudio.PyAudio()
+        with suppress_stderr():
+            pa = pyaudio.PyAudio()
         try:
             devices = []
             for index in range(pa.get_device_count()):
@@ -107,9 +129,11 @@ class AsynchAudioInputStream:
 
     @staticmethod
     def get_default_input_device():
-        pa = pyaudio.PyAudio()
+        with suppress_stderr():
+            pa = pyaudio.PyAudio()
         try:
-            return pa.get_default_input_device_info()
+            with suppress_stderr():
+                return pa.get_default_input_device_info()
         finally:
             pa.terminate()
 
