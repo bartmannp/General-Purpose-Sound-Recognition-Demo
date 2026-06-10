@@ -16,6 +16,7 @@ from threading import Thread
 import os
 import sys
 import time
+from datetime import datetime
 from dataclasses import dataclass
 from typing import Optional
 #
@@ -34,13 +35,13 @@ def build_runtime(model_path, all_labels, tracked_labels=None,
           samplerate=32000, audio_chunk_length=1024,
           ringbuffer_length=40000, model_winsize=1024,
           stft_hopsize=512, stft_window="hann", n_mels=64,
-          mel_fmin=50, mel_fmax=14000):
+          mel_fmin=50, mel_fmax=14000, input_device_index=None):
   """
   Build the shared audio/model inference components used by both GUI and
   headless runtimes.
   """
   audiostream = AsynchAudioInputStream(
-    samplerate, audio_chunk_length, ringbuffer_length)
+    samplerate, audio_chunk_length, ringbuffer_length, input_device_index)
   num_audioset_classes = len(all_labels)
   model = Cnn9_GMP_64x64(num_audioset_classes)
   checkpoint = torch.load(model_path,
@@ -60,7 +61,7 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
            model_winsize=1024, stft_hopsize=512,
            stft_window="hann", n_mels=64, mel_fmin=50,
            mel_fmax=14000, top_k=5, title_fontsize=22,
-           table_fontsize=18):
+           table_fontsize=18, input_device_index=None):
   from sed_demo.gui import DemoFrontend
 
   class DemoApp(DemoFrontend):
@@ -80,7 +81,7 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
         model_path, all_labels, tracked_labels,
         samplerate, audio_chunk_length, ringbuffer_length,
         model_winsize, stft_hopsize, stft_window,
-        n_mels, mel_fmin, mel_fmax)
+        n_mels, mel_fmin, mel_fmax, input_device_index)
       self.audiostream, self.inference, self.tracker = runtime
       self.top_k = top_k
       self.thread = None
@@ -131,16 +132,37 @@ class HeadlessDemoApp:
          ringbuffer_length=40000, model_winsize=1024,
          stft_hopsize=512, stft_window="hann", n_mels=64,
          mel_fmin=50, mel_fmax=14000, top_k=5,
-         print_interval=1.0, min_confidence=0.15):
+         print_interval=1.0, min_confidence=0.15,
+         log_path=None, input_device_index=None):
     runtime = build_runtime(
       model_path, all_labels, tracked_labels,
       samplerate, audio_chunk_length, ringbuffer_length,
       model_winsize, stft_hopsize, stft_window,
-      n_mels, mel_fmin, mel_fmax)
+      n_mels, mel_fmin, mel_fmax, input_device_index)
     self.audiostream, self.inference, self.tracker = runtime
     self.top_k = top_k
     self.print_interval = print_interval
     self.min_confidence = min_confidence
+    self.log_path = log_path
+    self.log_handle = None
+
+  def _timestamp(self):
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+  def _emit(self, message):
+    line = f"[{self._timestamp()}] {message}"
+    print(line)
+    if self.log_handle is not None:
+      self.log_handle.write(line + "\n")
+      self.log_handle.flush()
+
+  def _describe_device(self):
+    device = self.audiostream.input_device_info
+    return (
+      f"Using input device #{int(device['index'])}: {device['name']} "
+      f"({int(device['maxInputChannels'])} ch, "
+      f"default rate {device['defaultSampleRate']:.0f} Hz)"
+    )
 
   def _format_predictions(self, predictions):
     visible = [
@@ -153,7 +175,11 @@ class HeadlessDemoApp:
     return " | ".join(visible)
 
   def run(self):
-    print("Headless mode active. Press Ctrl+C to stop.")
+    if self.log_path:
+      self.log_handle = open(self.log_path, "a", encoding="utf-8")
+      self._emit(f"Logging to {self.log_path}")
+    self._emit("Headless mode active. Press Ctrl+C to stop.")
+    self._emit(self._describe_device())
     last_output = None
     last_print = 0.0
     self.audiostream.start()
@@ -164,13 +190,57 @@ class HeadlessDemoApp:
         output = self._format_predictions(predictions)
         now = time.monotonic()
         if output != last_output or (now - last_print) >= self.print_interval:
-          print(output)
+          self._emit(output)
           last_output = output
           last_print = now
     except KeyboardInterrupt:
-      print("Stopping...")
+      self._emit("Stopping...")
     finally:
       self.audiostream.terminate()
+      if self.log_handle is not None:
+        self.log_handle.close()
+
+
+def describe_audio_device(device_info):
+  return (
+    f"#{int(device_info['index'])}: {device_info['name']} "
+    f"({int(device_info['maxInputChannels'])} ch, "
+    f"default rate {device_info['defaultSampleRate']:.0f} Hz)"
+  )
+
+
+def select_audio_device(select_interactively=False):
+  if not select_interactively:
+    default_device = AsynchAudioInputStream.get_default_input_device()
+    print(f"Using default input device {describe_audio_device(default_device)}")
+    return int(default_device["index"])
+
+  devices = AsynchAudioInputStream.get_input_devices()
+  if not devices:
+    raise RuntimeError("No input audio devices were found.")
+
+  print("Available input devices:")
+  for device in devices:
+    print(f"  {describe_audio_device(device)}")
+
+  valid_indexes = {int(device["index"]) for device in devices}
+  while True:
+    selected = input("Select input device index (press Enter for default): ").strip()
+    if selected == "":
+      default_device = AsynchAudioInputStream.get_default_input_device()
+      print(f"Using default input device {describe_audio_device(default_device)}")
+      return int(default_device["index"])
+    try:
+      selected_index = int(selected)
+    except ValueError:
+      print("Please enter a valid integer device index.")
+      continue
+    if selected_index in valid_indexes:
+      chosen_device = next(
+        device for device in devices if int(device["index"]) == selected_index)
+      print(f"Using selected input device {describe_audio_device(chosen_device)}")
+      return selected_index
+    print("Selected device index is not in the available input device list.")
 
 
 # ##############################################################################
@@ -197,9 +267,12 @@ class ConfDef:
     N_MELS: int = 64
     MEL_FMIN: int = 50
     MEL_FMAX: int = 14000
+    AUDIO_DEVICE_INDEX: Optional[int] = None
+    SELECT_AUDIO_DEVICE: bool = False
     HEADLESS: bool = False
     HEADLESS_PRINT_INTERVAL: float = 1.0
     HEADLESS_MIN_CONFIDENCE: float = 0.15
+    HEADLESS_LOG_PATH: Optional[str] = None
     # frontend
     TOP_K: int = 6
     TITLE_FONTSIZE: int = 28
@@ -229,6 +302,20 @@ if __name__ == '__main__':
   else:
     _, _, subset_labels = load_csv_labels(CONF.SUBSET_LABELS_PATH)
   logo_paths = [SURREY_LOGO_PATH, CVSSP_LOGO_PATH, EPSRC_LOGO_PATH]
+  if CONF.AUDIO_DEVICE_INDEX is not None:
+    audio_device_index = CONF.AUDIO_DEVICE_INDEX
+    try:
+      selected_device = AsynchAudioInputStream.get_input_devices()
+      matched_device = next(
+        device for device in selected_device
+        if int(device["index"]) == int(audio_device_index))
+      print(f"Using configured input device {describe_audio_device(matched_device)}")
+    except StopIteration as exc:
+      raise RuntimeError(
+        f"Configured AUDIO_DEVICE_INDEX={audio_device_index} is not available."
+      ) from exc
+  else:
+    audio_device_index = select_audio_device(CONF.SELECT_AUDIO_DEVICE)
 
   if CONF.HEADLESS:
     demo = HeadlessDemoApp(
@@ -237,7 +324,8 @@ if __name__ == '__main__':
       CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
       CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
       CONF.TOP_K, CONF.HEADLESS_PRINT_INTERVAL,
-      CONF.HEADLESS_MIN_CONFIDENCE)
+      CONF.HEADLESS_MIN_CONFIDENCE, CONF.HEADLESS_LOG_PATH,
+      audio_device_index)
     demo.run()
   else:
     try:
@@ -247,7 +335,8 @@ if __name__ == '__main__':
         CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
         CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
         CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
-        CONF.TOP_K, CONF.TITLE_FONTSIZE, CONF.TABLE_FONTSIZE)
+        CONF.TOP_K, CONF.TITLE_FONTSIZE, CONF.TABLE_FONTSIZE,
+        audio_device_index)
     except ImportError as exc:
       raise RuntimeError(
         "Tkinter GUI dependencies are unavailable. Install the GUI system "

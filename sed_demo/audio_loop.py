@@ -65,24 +65,53 @@ class AsynchAudioInputStream:
     NP_DTYPE = np.float32
 
     def __init__(self, samplerate=32000, chunk_length=1024,
-                 ringbuffer_length=62*1024):
+                 ringbuffer_length=62*1024, input_device_index=None):
         """
         """
         self.sr = samplerate
         self.chunk = chunk_length
         self.rb_length = ringbuffer_length
+        self.input_device_index = input_device_index
         # setup recording stream
         self.pa = pyaudio.PyAudio()
+        self.input_device_info = self._get_selected_device_info()
         self.stream = self.pa.open(format=self.PYAUDIO_DTYPE,
                                    channels=self.IN_CHANNELS,
                                    rate=samplerate,
                                    input=True,  # record
                                    output=False,  # playback
+                                   input_device_index=input_device_index,
                                    frames_per_buffer=chunk_length,
                                    stream_callback=self.callback,
                                    start=False)
         # setup audio buffer
         self.rb = RingBuffer(ringbuffer_length, self.NP_DTYPE)
+
+    def _get_selected_device_info(self):
+        if self.input_device_index is None:
+            return self.pa.get_default_input_device_info()
+        return self.pa.get_device_info_by_index(self.input_device_index)
+
+    @staticmethod
+    def get_input_devices():
+        pa = pyaudio.PyAudio()
+        try:
+            devices = []
+            for index in range(pa.get_device_count()):
+                info = pa.get_device_info_by_index(index)
+                if info.get("maxInputChannels", 0) > 0:
+                    devices.append(info)
+            return devices
+        finally:
+            pa.terminate()
+
+    @staticmethod
+    def get_default_input_device():
+        pa = pyaudio.PyAudio()
+        try:
+            return pa.get_default_input_device_info()
+        finally:
+            pa.terminate()
 
     def read(self):
         """
