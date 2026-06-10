@@ -31,6 +31,9 @@ from sed_demo.audio_loop import AsynchAudioInputStream
 from sed_demo.inference import AudioModelInference, PredictionTracker
 
 
+DEFAULT_CONFIG_PATH = os.path.join("assets", "options.default.yaml")
+
+
 def build_runtime(model_path, all_labels, tracked_labels=None,
           samplerate=32000, audio_chunk_length=1024,
           ringbuffer_length=40000, model_winsize=1024,
@@ -301,6 +304,37 @@ class ConfDef:
     TOP_K: int = 6
     TITLE_FONTSIZE: int = 28
     TABLE_FONTSIZE: int = 22
+    CONFIG_PATH: str = DEFAULT_CONFIG_PATH
+
+
+def load_runtime_config():
+  """
+  Load runtime configuration with precedence:
+  1) code defaults
+  2) YAML config file
+  3) CLI KEY=VALUE overrides
+  """
+  defaults = OmegaConf.structured(ConfDef())
+  cli_conf = OmegaConf.from_cli()
+
+  config_path = OmegaConf.select(cli_conf, "CONFIG_PATH")
+  if config_path is None:
+    config_path = defaults.CONFIG_PATH
+
+  yaml_conf = OmegaConf.create()
+  if config_path:
+    if not os.path.isabs(config_path):
+      config_path = os.path.abspath(config_path)
+    if not os.path.exists(config_path):
+      raise FileNotFoundError(
+        f"Configuration file not found: {config_path}. "
+        "Set CONFIG_PATH=<path_to_yaml> or create the default file."
+      )
+    yaml_conf = OmegaConf.load(config_path)
+
+  merged = OmegaConf.merge(defaults, yaml_conf, cli_conf)
+  merged.CONFIG_PATH = config_path
+  return merged
 
 
 # ##############################################################################
@@ -314,9 +348,7 @@ if __name__ == '__main__':
       f"Current interpreter: {sys.version.split()[0]}"
     )
 
-  CONF = OmegaConf.structured(ConfDef())
-  cli_conf = OmegaConf.from_cli()
-  CONF = OmegaConf.merge(CONF, cli_conf)
+  CONF = load_runtime_config()
   print("\n\nCONFIGURATION:")
   print(OmegaConf.to_yaml(CONF), end="\n\n\n")
 

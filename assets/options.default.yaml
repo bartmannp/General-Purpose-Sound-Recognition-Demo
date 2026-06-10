@@ -1,0 +1,32 @@
+# Default runtime options for sed_demo.
+# Any value can still be overridden via CLI: KEY=VALUE
+
+ALL_LABELS_PATH: sed_demo/assets/audioset_labels.csv
+SUBSET_LABELS_PATH: null
+MODEL_PATH: models/Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth
+
+SAMPLERATE: 32000
+AUDIO_CHUNK_LENGTH: 1024
+RINGBUFFER_LENGTH: 64000
+
+MODEL_WINSIZE: 1024
+STFT_HOPSIZE: 512
+STFT_WINDOW: hann
+N_MELS: 64
+MEL_FMIN: 50
+MEL_FMAX: 14000
+
+INFERENCE_INTERVAL: 0.25
+AUDIO_DEVICE_INDEX: null
+SELECT_AUDIO_DEVICE: false
+HEADLESS: false
+HEADLESS_PRINT_INTERVAL: 1.0
+HEADLESS_MIN_CONFIDENCE: 0.15
+HEADLESS_LOG_PATH: null
+
+TOP_K: 6
+TITLE_FONTSIZE: 28
+TABLE_FONTSIZE: 22
+
+# You can point to another YAML config by overriding this from CLI.
+CONFIG_PATH: assets/options.default.yaml
