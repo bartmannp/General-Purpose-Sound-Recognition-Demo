@@ -113,6 +113,34 @@ python -m sed_demo MODEL_PATH='<model_location>'
 
 Note that the terminal will print all available parameters and their values upon start. The syntax to alter them is the same as with `MODEL_PATH`, e.g. to change the number of classes displayed to 10, add `TOP_K=10`.
 
+### Aggregated label collections
+
+Besides filtering to a subset of existing labels, the demo can now aggregate
+several AudioSet labels into a virtual label by summing their probabilities
+after model inference. This does **not** change model loading, retraining, or
+probability normalization; it only changes how predictions are grouped for
+display.
+
+To enable this mode, pass `LABEL_COLLECTIONS_PATH` pointing to a CSV with four
+columns:
+
+```
+collection_name,index,mid,display_name
+```
+
+Each repeated `collection_name` defines one aggregate label. An example file is
+provided in [assets/example_label_collections.csv](assets/example_label_collections.csv).
+
+Example:
+
+```
+uv run -m sed_demo MODEL_PATH='<model_location>' HEADLESS=True LABEL_COLLECTIONS_PATH='assets/example_label_collections.csv' TOP_K=3
+```
+
+`SUBSET_LABELS_PATH` can still be used at the same time. If both are set, the
+collection members are first filtered by the subset and then summed inside each
+collection.
+
 ### Raspberry Pi notes
 
 The demo can run on Raspberry Pi without code changes to the model itself, but

@@ -126,13 +126,21 @@ class PredictionTracker:
     Post-processing module to filter out undesired classes from the output and
     retrieve top-k class names and confidences, sorted in descending order by
     their confidence.
+
+    It can also aggregate several model output labels into a smaller set of
+    virtual labels by summing their probabilities.
     """
 
-    def __init__(self, all_labels, allow_list=None, deny_list=None):
+    def __init__(self, all_labels, allow_list=None, deny_list=None,
+                 label_collections=None):
         """
         :param all_labels: List with all categories as returned by the model.
         :param allow_list: If not ``None``, contains the allowed categories.
         :param deny_list: If not ``None``, contains the categories ignored.
+        :param label_collections: If not ``None``, contains
+          ``(collection_name, [class_name, ...])`` tuples. Each collection is
+          exposed as a virtual label whose probability is the sum of all member
+          class probabilities.
         """
         self.all_labels = all_labels
         self.all_lbls_to_idxs = {l: i for i, l in enumerate(all_labels)}
@@ -140,10 +148,31 @@ class PredictionTracker:
             allow_list = all_labels
         if deny_list is None:
             deny_list = []
-        self.labels = [l for l in all_labels
+        base_labels = [l for l in all_labels
                        if l in allow_list and l not in deny_list]
-        self.lbls_to_idxs = {l: self.all_lbls_to_idxs[l] for l in self.labels}
-        self.idxs = sorted(self.lbls_to_idxs.values())
+
+        if label_collections is None:
+            self.labels = base_labels
+            self.label_idx_groups = [np.array([self.all_lbls_to_idxs[label]])
+                                     for label in self.labels]
+        else:
+            self.labels = []
+            self.label_idx_groups = []
+            allowed_labels = set(base_labels)
+            for collection_name, collection_members in label_collections:
+                member_idxs = []
+                for label in collection_members:
+                    if label not in self.all_lbls_to_idxs:
+                        raise ValueError(
+                            f"Unknown label '{label}' in collection "
+                            f"'{collection_name}'."
+                        )
+                    if label in allowed_labels:
+                        member_idxs.append(self.all_lbls_to_idxs[label])
+                if not member_idxs:
+                    continue
+                self.labels.append(collection_name)
+                self.label_idx_groups.append(np.array(sorted(member_idxs)))
 
     def __call__(self, model_probs, top_k=6, sorted_by_p=True):
         """
@@ -153,10 +182,17 @@ class PredictionTracker:
           descending order.
         """
         assert top_k >= 1, "Only integer >= 1 allowed for top_k!"
-        top_k += 1
-        #
-        tracked_probs = model_probs[self.idxs]
-        top_idxs = np.argpartition(tracked_probs, -top_k)[-top_k:]
+        if not self.labels:
+            return []
+
+        tracked_probs = np.array([
+            model_probs[idx_group].sum() for idx_group in self.label_idx_groups
+        ])
+        top_k = min(top_k, len(tracked_probs))
+        if top_k == len(tracked_probs):
+            top_idxs = np.arange(len(tracked_probs))
+        else:
+            top_idxs = np.argpartition(tracked_probs, -top_k)[-top_k:]
         top_probs = tracked_probs[top_idxs]
         top_labels = [self.labels[idx] for idx in top_idxs]
         result = list(zip(top_labels, top_probs))

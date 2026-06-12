@@ -25,13 +25,14 @@ from omegaconf import OmegaConf
 #
 from sed_demo import AI4S_BANNER_PATH, SURREY_LOGO_PATH, CVSSP_LOGO_PATH, \
     EPSRC_LOGO_PATH, AUDIOSET_LABELS_PATH
-from sed_demo.utils import load_csv_labels
+from sed_demo.utils import load_csv_labels, load_label_collections
 from sed_demo.models import Cnn9_GMP_64x64
 from sed_demo.audio_loop import AsynchAudioInputStream
 from sed_demo.inference import AudioModelInference, PredictionTracker
 
 
 def build_runtime(model_path, all_labels, tracked_labels=None,
+      label_collections=None,
           samplerate=32000, audio_chunk_length=1024,
           ringbuffer_length=40000, model_winsize=1024,
           stft_hopsize=512, stft_window="hann", n_mels=64,
@@ -51,7 +52,9 @@ def build_runtime(model_path, all_labels, tracked_labels=None,
   inference = AudioModelInference(
     model, model_winsize, stft_hopsize, samplerate, stft_window,
     n_mels, mel_fmin, mel_fmax)
-  tracker = PredictionTracker(all_labels, allow_list=tracked_labels)
+  tracker = PredictionTracker(
+    all_labels, allow_list=tracked_labels,
+    label_collections=label_collections)
   return audiostream, inference, tracker
 
 
@@ -68,7 +71,7 @@ def wait_for_next_inference(last_inference_at, inference_interval):
 
 
 def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
-           tracked_labels=None, samplerate=32000,
+           tracked_labels=None, label_collections=None, samplerate=32000,
            audio_chunk_length=1024, ringbuffer_length=40000,
            model_winsize=1024, stft_hopsize=512,
            stft_window="hann", n_mels=64, mel_fmin=50,
@@ -90,7 +93,7 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
                title_fontsize=title_fontsize,
                table_fontsize=table_fontsize)
       runtime = build_runtime(
-        model_path, all_labels, tracked_labels,
+        model_path, all_labels, tracked_labels, label_collections,
         samplerate, audio_chunk_length, ringbuffer_length,
         model_winsize, stft_hopsize, stft_window,
         n_mels, mel_fmin, mel_fmax, input_device_index)
@@ -144,6 +147,7 @@ class HeadlessDemoApp:
   """
 
   def __init__(self, model_path, all_labels, tracked_labels=None,
+      label_collections=None,
          samplerate=32000, audio_chunk_length=1024,
          ringbuffer_length=40000, model_winsize=1024,
          stft_hopsize=512, stft_window="hann", n_mels=64,
@@ -151,7 +155,7 @@ class HeadlessDemoApp:
          print_interval=1.0, min_confidence=0.15,
          log_path=None, input_device_index=None):
     runtime = build_runtime(
-      model_path, all_labels, tracked_labels,
+      model_path, all_labels, tracked_labels, label_collections,
       samplerate, audio_chunk_length, ringbuffer_length,
       model_winsize, stft_hopsize, stft_window,
       n_mels, mel_fmin, mel_fmax, input_device_index)
@@ -277,6 +281,7 @@ class ConfDef:
     """
     ALL_LABELS_PATH: str = AUDIOSET_LABELS_PATH
     SUBSET_LABELS_PATH: Optional[str] = None
+    LABEL_COLLECTIONS_PATH: Optional[str] = None
     MODEL_PATH: str = os.path.join(
         "models", "Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth")
     #
@@ -325,6 +330,10 @@ if __name__ == '__main__':
     subset_labels = None
   else:
     _, _, subset_labels = load_csv_labels(CONF.SUBSET_LABELS_PATH)
+  if CONF.LABEL_COLLECTIONS_PATH is None:
+    label_collections = None
+  else:
+    label_collections = load_label_collections(CONF.LABEL_COLLECTIONS_PATH)
   logo_paths = [SURREY_LOGO_PATH, CVSSP_LOGO_PATH, EPSRC_LOGO_PATH]
   if CONF.AUDIO_DEVICE_INDEX is not None:
     audio_device_index = CONF.AUDIO_DEVICE_INDEX
@@ -343,7 +352,7 @@ if __name__ == '__main__':
 
   if CONF.HEADLESS:
     demo = HeadlessDemoApp(
-      CONF.MODEL_PATH, all_labels, subset_labels,
+      CONF.MODEL_PATH, all_labels, subset_labels, label_collections,
       CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
       CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
       CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
@@ -356,7 +365,7 @@ if __name__ == '__main__':
     try:
       demo = create_gui_app(
         AI4S_BANNER_PATH, logo_paths, CONF.MODEL_PATH,
-        all_labels, subset_labels,
+        all_labels, subset_labels, label_collections,
         CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
         CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
         CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,

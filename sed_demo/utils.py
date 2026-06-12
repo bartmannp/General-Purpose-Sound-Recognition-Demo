@@ -32,6 +32,38 @@ def load_csv_labels(labels_csv_path):
     return num_classes, ids, labels
 
 
+def load_label_collections(collections_csv_path):
+    """
+    Given the path to a 4-column CSV file
+    ``(collection_name, index, class_ID, class_name)``, this function ignores
+    the header and returns a list of ``(collection_name, class_names)`` tuples.
+
+    Repeated ``collection_name`` values are grouped together in order of
+    appearance. The ``index`` and ``class_ID`` columns are accepted so the file
+    can mirror the AudioSet label sheet, but only the collection name and class
+    name are required by the runtime.
+    """
+    with open(collections_csv_path, "r", encoding="utf-8") as f:
+        reader = csv.reader(f, delimiter=",")
+        lines = list(reader)
+
+    collections = []
+    collection_members = {}
+    for row in lines[1:]:
+        if len(row) != 4:
+            raise ValueError(
+                "Expected 4 columns in label collection CSV: "
+                "(collection_name, index, class_ID, class_name)"
+            )
+        collection_name, _, _, class_name = row
+        if collection_name not in collection_members:
+            collection_members[collection_name] = []
+            collections.append((collection_name, collection_members[collection_name]))
+        collection_members[collection_name].append(class_name)
+
+    return collections
+
+
 # ##############################################################################
 # # PYTORCH
 # ##############################################################################
