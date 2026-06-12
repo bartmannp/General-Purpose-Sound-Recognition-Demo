@@ -92,26 +92,43 @@ Download the model into your preferred `<model_location>` via:
 wget https://zenodo.org/record/3576599/files/Cnn9_GMP_64x64_300000_iterations_mAP%3D0.37.pth?download=1
 ```
 
-Then specify the path when running the app using the `MODEL_PATH` flag (see sample command below).
+Then specify the path when running the app using either:
+
+* a YAML config file (recommended), or
+* a CLI override (e.g. `MODEL_PATH='<model_location>'`).
 
 More models can be found [here](https://zenodo.org/record/3576599) and [here](https://zenodo.org/record/3987831).
 
 
 # RUN
 
-Assuming the model has been downloaded and `<repo_root>` is the current directory:
+Assuming the model has been downloaded and `<repo_root>` is the current directory,
+the app reads options from `assets/options.default.yaml` by default:
 
 ```
-uv run -m sed_demo MODEL_PATH='<model_location>'
+uv run -m sed_demo
 ```
 
 Or, if using conda/pip:
 
 ```
-python -m sed_demo MODEL_PATH='<model_location>'
+python -m sed_demo
 ```
 
-Note that the terminal will print all available parameters and their values upon start. The syntax to alter them is the same as with `MODEL_PATH`, e.g. to change the number of classes displayed to 10, add `TOP_K=10`.
+To use your own YAML file, pass its path with `CONFIG_PATH`:
+
+```
+uv run -m sed_demo CONFIG_PATH='assets/options.example.yaml'
+```
+
+CLI values still override YAML values when needed:
+
+```
+uv run -m sed_demo CONFIG_PATH='assets/options.example.yaml' TOP_K=12
+```
+
+If a key is missing from your YAML file, the in-code default is used.
+The terminal prints the final merged configuration on startup.
 
 ### Aggregated label collections
 

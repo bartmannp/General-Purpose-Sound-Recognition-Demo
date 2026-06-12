@@ -1,0 +1,11 @@
+# Example override-focused config.
+# Only include the keys you want to change.
+# Missing keys keep defaults from sed_demo.__main__.ConfDef.
+
+HEADLESS: true
+TOP_K: 10
+INFERENCE_INTERVAL: 0.35
+HEADLESS_PRINT_INTERVAL: 1.5
+HEADLESS_MIN_CONFIDENCE: 0.2
+HEADLESS_LOG_PATH: logs/sound-recognition.log
+SELECT_AUDIO_DEVICE: true
