@@ -103,7 +103,10 @@ More models can be found [here](https://zenodo.org/record/3576599) and [here](ht
 # RUN
 
 Assuming the model has been downloaded and `<repo_root>` is the current directory,
-the app reads options from `assets/options.default.yaml` by default:
+the app looks for the default config in this order:
+
+1. `options.default.yaml`
+2. `assets/options.default.yaml`
 
 ```
 uv run -m sed_demo

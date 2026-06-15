@@ -32,6 +32,18 @@ from sed_demo.inference import AudioModelInference, PredictionTracker
 
 
 DEFAULT_CONFIG_PATH = os.path.join("assets", "options.default.yaml")
+DEFAULT_CONFIG_CANDIDATES = (
+    "options.default.yaml",
+    DEFAULT_CONFIG_PATH,
+)
+
+
+def resolve_default_config_path():
+  for candidate in DEFAULT_CONFIG_CANDIDATES:
+    candidate_path = os.path.abspath(candidate)
+    if os.path.exists(candidate_path):
+      return candidate_path
+  return os.path.abspath(DEFAULT_CONFIG_PATH)
 
 
 def build_runtime(model_path, all_labels, tracked_labels=None,
@@ -324,7 +336,7 @@ def load_runtime_config():
 
   config_path = OmegaConf.select(cli_conf, "CONFIG_PATH")
   if config_path is None:
-    config_path = defaults.CONFIG_PATH
+    config_path = resolve_default_config_path()
 
   yaml_conf = OmegaConf.create()
   if config_path:

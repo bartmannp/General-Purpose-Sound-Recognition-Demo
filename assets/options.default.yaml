@@ -3,6 +3,7 @@
 
 ALL_LABELS_PATH: sed_demo/assets/audioset_labels.csv
 SUBSET_LABELS_PATH: null
+LABEL_COLLECTIONS_PATH: null
 MODEL_PATH: models/Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth
 
 SAMPLERATE: 32000
