@@ -358,7 +358,8 @@ def load_runtime_config():
   if specific_app_confs:
     specific_conf_path = str(specific_app_confs)
     if not os.path.isabs(specific_conf_path):
-      base_dir = os.path.dirname(config_path) if config_path else os.getcwd()
+#      base_dir = os.path.dirname(config_path) if config_path else os.getcwd()
+      base_dir = os.getcwd()
       specific_conf_path = os.path.abspath(
         os.path.join(base_dir, specific_conf_path))
     if not os.path.exists(specific_conf_path):

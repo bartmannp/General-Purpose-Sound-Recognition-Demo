@@ -33,4 +33,4 @@ TABLE_FONTSIZE: 22
 CONFIG_PATH: assets/options.default.yaml
 
 # You can point to another YAML config with app specific options.
-SPECIFIC_CONFIG_PATH: null
+SPECIFIC_APP_CONFS: null
