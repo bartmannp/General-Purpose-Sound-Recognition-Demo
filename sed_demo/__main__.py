@@ -322,6 +322,7 @@ class ConfDef:
     TITLE_FONTSIZE: int = 28
     TABLE_FONTSIZE: int = 22
     CONFIG_PATH: str = DEFAULT_CONFIG_PATH
+    SPECIFIC_APP_CONFS: Optional[str] = None
 
 
 def load_runtime_config():
@@ -330,8 +331,10 @@ def load_runtime_config():
   1) code defaults
   2) YAML config file
   3) CLI KEY=VALUE overrides
+  4) SPECIFIC_APP_CONFS file (if set) as final overrides
   """
   defaults = OmegaConf.structured(ConfDef())
+  defaults = OmegaConf.create(OmegaConf.to_container(defaults, resolve=False))
   cli_conf = OmegaConf.from_cli()
 
   config_path = OmegaConf.select(cli_conf, "CONFIG_PATH")
@@ -350,6 +353,23 @@ def load_runtime_config():
     yaml_conf = OmegaConf.load(config_path)
 
   merged = OmegaConf.merge(defaults, yaml_conf, cli_conf)
+
+  specific_app_confs = OmegaConf.select(merged, "SPECIFIC_APP_CONFS")
+  if specific_app_confs:
+    specific_conf_path = str(specific_app_confs)
+    if not os.path.isabs(specific_conf_path):
+      base_dir = os.path.dirname(config_path) if config_path else os.getcwd()
+      specific_conf_path = os.path.abspath(
+        os.path.join(base_dir, specific_conf_path))
+    if not os.path.exists(specific_conf_path):
+      raise FileNotFoundError(
+        f"Specific app configuration file not found: {specific_conf_path}. "
+        "Set SPECIFIC_APP_CONFS=<path_to_yaml> to a valid file."
+      )
+    specific_conf = OmegaConf.load(specific_conf_path)
+    merged = OmegaConf.merge(merged, specific_conf)
+    merged.SPECIFIC_APP_CONFS = specific_conf_path
+
   merged.CONFIG_PATH = config_path
   return merged
 
