@@ -30,4 +30,4 @@ TITLE_FONTSIZE: 28
 TABLE_FONTSIZE: 22
 
 # You can point to another YAML config by overriding this from CLI.
-CONFIG_PATH: assets/options.default.yaml
+CONFIG_PATH: assets/options.example.yaml
