@@ -474,7 +474,9 @@ if __name__ == '__main__':
   else:
     label_collections = load_label_collections(CONF.LABEL_COLLECTIONS_PATH)
   logo_paths = [SURREY_LOGO_PATH, CVSSP_LOGO_PATH, EPSRC_LOGO_PATH]
-  if CONF.AUDIO_DEVICE_INDEX is not None:
+  if CONF.SELECT_AUDIO_DEVICE:
+    audio_device_index = select_audio_device(True)
+  elif CONF.AUDIO_DEVICE_INDEX is not None:
     audio_device_index = CONF.AUDIO_DEVICE_INDEX
     try:
       selected_device = AsynchAudioInputStream.get_input_devices()
