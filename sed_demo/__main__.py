@@ -241,6 +241,29 @@ class HeadlessDemoApp:
   def _timestamp(self):
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+  def _resolve_log_path(self, path_template):
+    if not path_template:
+      return path_template
+
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    replacements = {
+      "$year": now.strftime("%Y"),
+      "$month": now.strftime("%m"),
+      "$day": now.strftime("%d"),
+      "$hour": now.strftime("%H"),
+      "$minute": now.strftime("%M"),
+      "$seconds": now.strftime("%S"),
+      "$timestamp": timestamp,
+      # Backward-compatible alias for common typo.
+      "$timestasmp": timestamp,
+    }
+
+    resolved = str(path_template)
+    for token, value in replacements.items():
+      resolved = resolved.replace(token, value)
+    return resolved
+
   def _emit(self, message):
     line = f"[{self._timestamp()}] {message}"
     print(line)
@@ -268,11 +291,12 @@ class HeadlessDemoApp:
 
   def run(self):
     if self.log_path:
-      log_dir = os.path.dirname(os.path.abspath(self.log_path))
+      resolved_log_path = self._resolve_log_path(self.log_path)
+      log_dir = os.path.dirname(os.path.abspath(resolved_log_path))
       if log_dir:
         os.makedirs(log_dir, exist_ok=True)
-      self.log_handle = open(self.log_path, "a", encoding="utf-8")
-      self._emit(f"Logging to {self.log_path}")
+      self.log_handle = open(resolved_log_path, "a", encoding="utf-8")
+      self._emit(f"Logging to {resolved_log_path}")
     self._emit("Headless mode active. Press Ctrl+C to stop.")
     self._emit(self._describe_device())
     last_output = None

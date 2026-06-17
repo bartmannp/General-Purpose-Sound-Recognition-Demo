@@ -23,6 +23,9 @@ SELECT_AUDIO_DEVICE: false
 HEADLESS: false
 HEADLESS_PRINT_INTERVAL: 1.0
 HEADLESS_MIN_CONFIDENCE: 0.15
+# Supported HEADLESS_LOG_PATH tokens:
+# $year, $month, $day, $hour, $minute, $seconds, $timestamp
+# Example: logs/session_$timestamp.log
 HEADLESS_LOG_PATH: null
 
 TOP_K: 6
@@ -33,4 +36,4 @@ TABLE_FONTSIZE: 22
 CONFIG_PATH: assets/options.default.yaml
 
 # You can point to another YAML config with app specific options.
-SPECIFIC_APP_CONFS: null
+SPECIFIC_APP_CONFS: assets/options.example.yaml
