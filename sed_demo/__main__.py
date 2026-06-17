@@ -384,10 +384,10 @@ class ConfDef:
 def load_runtime_config():
   """
   Load runtime configuration with precedence:
-  1) code defaults
-  2) YAML config file
+  1) code defaults (lowest)
+  2) main YAML config
   3) CLI KEY=VALUE overrides
-  4) selected SPECIFIC_APP_CONFS file as final overrides
+  4) selected SPECIFIC_APP_CONFS file (highest)
 
   Supported specific-app keys:
     - SPECIFIC_APP_CONFS
@@ -414,7 +414,10 @@ def load_runtime_config():
       )
     yaml_conf = OmegaConf.load(config_path)
 
-  merged = OmegaConf.merge(defaults, yaml_conf, cli_conf)
+  # Explicitly layer defaults -> main YAML -> CLI so defaults are always
+  # lowest priority and main YAML reliably overrides code defaults.
+  merged = OmegaConf.merge(defaults, yaml_conf)
+  merged = OmegaConf.merge(merged, cli_conf)
 
   cli_specific_entries = collect_specific_app_conf_entries(cli_conf)
   yaml_specific_entries = collect_specific_app_conf_entries(yaml_conf)
