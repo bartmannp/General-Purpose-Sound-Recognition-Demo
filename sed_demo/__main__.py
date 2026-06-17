@@ -46,6 +46,62 @@ def resolve_default_config_path():
   return os.path.abspath(DEFAULT_CONFIG_PATH)
 
 
+def collect_specific_app_conf_entries(conf):
+  """
+  Return configured specific-app config entries as
+  (order, key, path) tuples.
+  Supported keys:
+    - SPECIFIC_APP_CONFS
+    - SPECIFIC_APP_CONFS_0, SPECIFIC_APP_CONFS_1, ...
+  """
+  if conf is None:
+    return []
+
+  entries = []
+  for key in conf.keys():
+    value = OmegaConf.select(conf, key)
+    if value in (None, ""):
+      continue
+
+    if key == "SPECIFIC_APP_CONFS":
+      entries.append((-1, key, str(value)))
+      continue
+
+    if key.startswith("SPECIFIC_APP_CONFS_"):
+      suffix = key[len("SPECIFIC_APP_CONFS_"):]
+      try:
+        order = int(suffix)
+      except ValueError:
+        continue
+      entries.append((order, key, str(value)))
+
+  entries.sort(key=lambda item: (item[0], item[1]))
+  return entries
+
+
+def choose_specific_app_conf_interactively(entries):
+  """
+  Ask the user to choose one specific-app config from provided entries.
+  """
+  print("Multiple specific app configs are defined in the main config file:")
+  for idx, (_, key, path) in enumerate(entries):
+    print(f"  [{idx}] {key}: {path}")
+
+  while True:
+    selected = input(
+      f"Select config to load [0-{len(entries) - 1}] (default 0): ").strip()
+    if selected == "":
+      return entries[0]
+    try:
+      selected_idx = int(selected)
+    except ValueError:
+      print("Please enter a valid integer index.")
+      continue
+    if 0 <= selected_idx < len(entries):
+      return entries[selected_idx]
+    print("Selected index is out of range.")
+
+
 def build_runtime(model_path, all_labels, tracked_labels=None,
       label_collections=None,
           samplerate=32000, audio_chunk_length=1024,
@@ -331,7 +387,13 @@ def load_runtime_config():
   1) code defaults
   2) YAML config file
   3) CLI KEY=VALUE overrides
-  4) SPECIFIC_APP_CONFS file (if set) as final overrides
+  4) selected SPECIFIC_APP_CONFS file as final overrides
+
+  Supported specific-app keys:
+    - SPECIFIC_APP_CONFS
+    - SPECIFIC_APP_CONFS_0, SPECIFIC_APP_CONFS_1, ...
+  If the main config file defines more than one specific-app entry, the
+  user is prompted to choose which one to load.
   """
   defaults = OmegaConf.structured(ConfDef())
   defaults = OmegaConf.create(OmegaConf.to_container(defaults, resolve=False))
@@ -354,18 +416,27 @@ def load_runtime_config():
 
   merged = OmegaConf.merge(defaults, yaml_conf, cli_conf)
 
-  specific_app_confs = OmegaConf.select(merged, "SPECIFIC_APP_CONFS")
-  if specific_app_confs:
-    specific_conf_path = str(specific_app_confs)
+  cli_specific_entries = collect_specific_app_conf_entries(cli_conf)
+  yaml_specific_entries = collect_specific_app_conf_entries(yaml_conf)
+
+  selected_specific_entry = None
+  if cli_specific_entries:
+    # CLI-provided selection wins.
+    selected_specific_entry = cli_specific_entries[0]
+  elif len(yaml_specific_entries) > 1:
+    selected_specific_entry = choose_specific_app_conf_interactively(
+      yaml_specific_entries)
+  elif len(yaml_specific_entries) == 1:
+    selected_specific_entry = yaml_specific_entries[0]
+
+  if selected_specific_entry is not None:
+    _, selected_key, specific_conf_path = selected_specific_entry
     if not os.path.isabs(specific_conf_path):
-#      base_dir = os.path.dirname(config_path) if config_path else os.getcwd()
-      base_dir = os.getcwd()
-      specific_conf_path = os.path.abspath(
-        os.path.join(base_dir, specific_conf_path))
+      specific_conf_path = os.path.abspath(specific_conf_path)
     if not os.path.exists(specific_conf_path):
       raise FileNotFoundError(
         f"Specific app configuration file not found: {specific_conf_path}. "
-        "Set SPECIFIC_APP_CONFS=<path_to_yaml> to a valid file."
+        f"Set {selected_key}=<path_to_yaml> to a valid file."
       )
     specific_conf = OmegaConf.load(specific_conf_path)
     merged = OmegaConf.merge(merged, specific_conf)
