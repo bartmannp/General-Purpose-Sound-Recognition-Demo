@@ -133,6 +133,135 @@ uv run -m sed_demo CONFIG_PATH='assets/options.example.yaml' TOP_K=12
 If a key is missing from your YAML file, the in-code default is used.
 The terminal prints the final merged configuration on startup.
 
+## Configuration Reference
+
+Configuration merge priority (lowest to highest):
+
+1. Code defaults in ConfDef
+2. Main config file set by CONFIG_PATH
+3. CLI overrides passed as KEY=VALUE
+4. Selected specific-app config from SPECIFIC_APP_CONFS or SPECIFIC_APP_CONFS_N
+
+Main config options:
+
+Audio labels and model:
+
+* ALL_LABELS_PATH: CSV path with all AudioSet labels used by the model.
+* SUBSET_LABELS_PATH: Optional CSV path for label filtering. Use null to disable.
+* LABEL_COLLECTIONS_PATH: Optional CSV path defining virtual grouped labels.
+* LABEL_GAINS: Optional mapping label_name -> gain. 1.0 is neutral.
+* COLLECTION_GAINS: Optional mapping collection_name -> gain. 1.0 is neutral.
+* MODEL_PATH: Path to the pretrained model checkpoint.
+
+Audio and frontend processing:
+
+* SAMPLERATE: Audio sample rate used for capture and preprocessing.
+* AUDIO_CHUNK_LENGTH: Number of audio samples read per stream chunk.
+* RINGBUFFER_LENGTH: Audio ring buffer length in samples.
+* MODEL_WINSIZE: STFT window size used by the model frontend.
+* STFT_HOPSIZE: STFT hop size.
+* STFT_WINDOW: STFT window type.
+* N_MELS: Number of mel bins.
+* MEL_FMIN: Lowest mel frequency.
+* MEL_FMAX: Highest mel frequency.
+* INFERENCE_INTERVAL: Seconds between model inferences.
+
+Audio device behavior:
+
+* AUDIO_DEVICE_INDEX: Optional fixed PortAudio device index.
+* SELECT_AUDIO_DEVICE: If true, always opens interactive device selection on startup, even if AUDIO_DEVICE_INDEX is set.
+
+Runtime mode and headless output:
+
+* HEADLESS: If true, run without GUI and print predictions to console.
+* HEADLESS_PRINT_INTERVAL: Maximum interval between printed lines in headless mode.
+* HEADLESS_MIN_CONFIDENCE: Hide predictions below this confidence.
+* HEADLESS_LOG_PATH: Optional log file path for headless mode.
+	Supported tokens: $year, $month, $day, $hour, $minute, $seconds, $timestamp.
+	Example value: logs/sound-recognition_$timestamp.log
+
+GUI and config selection:
+
+* TOP_K: Number of top predictions to display.
+* TITLE_FONTSIZE: GUI title font size.
+* TABLE_FONTSIZE: GUI prediction table font size.
+* CONFIG_PATH: Path to main YAML config file.
+* SPECIFIC_APP_CONFS: Optional path to one specific-app override YAML.
+
+Multiple specific-app configs:
+
+You can define multiple specific-app configs in the main YAML:
+
+* SPECIFIC_APP_CONFS_0: path/to/profile_a.yaml
+* SPECIFIC_APP_CONFS_1: path/to/profile_b.yaml
+* SPECIFIC_APP_CONFS_2: path/to/profile_c.yaml
+
+If more than one SPECIFIC_APP_CONFS_N entry is present in the main YAML,
+the app asks at startup which one to load.
+
+### Example: main config with all common options
+
+Example file: assets/options.default.yaml
+
+ALL_LABELS_PATH: sed_demo/assets/audioset_labels.csv
+SUBSET_LABELS_PATH: null
+LABEL_COLLECTIONS_PATH: assets/requested_collections_medium.csv
+LABEL_GAINS: {}
+COLLECTION_GAINS: {}
+MODEL_PATH: models/Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth
+SAMPLERATE: 32000
+AUDIO_CHUNK_LENGTH: 1024
+RINGBUFFER_LENGTH: 64000
+MODEL_WINSIZE: 1024
+STFT_HOPSIZE: 512
+STFT_WINDOW: hann
+N_MELS: 64
+MEL_FMIN: 50
+MEL_FMAX: 14000
+INFERENCE_INTERVAL: 0.25
+AUDIO_DEVICE_INDEX: null
+SELECT_AUDIO_DEVICE: true
+HEADLESS: true
+HEADLESS_PRINT_INTERVAL: 1.0
+HEADLESS_MIN_CONFIDENCE: 0.15
+HEADLESS_LOG_PATH: logs/session_$timestamp.log
+TOP_K: 6
+TITLE_FONTSIZE: 28
+TABLE_FONTSIZE: 22
+CONFIG_PATH: assets/options.default.yaml
+SPECIFIC_APP_CONFS_0: assets/profiles/home.yaml
+SPECIFIC_APP_CONFS_1: assets/profiles/office.yaml
+
+### Example: specific-app profile with gain tuning
+
+Example file: assets/profiles/home.yaml
+
+HEADLESS: true
+LABEL_GAINS:
+	Walk, footsteps: 1.2
+	Toilet flush: 0.8
+COLLECTION_GAINS:
+	door bell: 1.3
+	boiling water: 0.9
+
+### Example run commands
+
+Use the default main config:
+
+uv run -m sed_demo
+
+Use a different main config:
+
+uv run -m sed_demo CONFIG_PATH=assets/options.example.yaml
+
+Force one specific profile from CLI (highest priority):
+
+uv run -m sed_demo CONFIG_PATH=assets/options.default.yaml SPECIFIC_APP_CONFS=assets/profiles/home.yaml
+
+Override a single key from CLI:
+
+uv run -m sed_demo CONFIG_PATH=assets/options.default.yaml TOP_K=12
+
 ### Aggregated label collections
 
 Besides filtering to a subset of existing labels, the demo can now aggregate
