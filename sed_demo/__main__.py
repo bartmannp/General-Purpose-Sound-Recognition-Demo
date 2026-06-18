@@ -17,8 +17,8 @@ import os
 import sys
 import time
 from datetime import datetime
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Dict, Optional
 #
 import torch
 from omegaconf import OmegaConf
@@ -103,7 +103,7 @@ def choose_specific_app_conf_interactively(entries):
 
 
 def build_runtime(model_path, all_labels, tracked_labels=None,
-      label_collections=None,
+  label_collections=None, label_gains=None, collection_gains=None,
           samplerate=32000, audio_chunk_length=1024,
           ringbuffer_length=40000, model_winsize=1024,
           stft_hopsize=512, stft_window="hann", n_mels=64,
@@ -125,7 +125,9 @@ def build_runtime(model_path, all_labels, tracked_labels=None,
     n_mels, mel_fmin, mel_fmax)
   tracker = PredictionTracker(
     all_labels, allow_list=tracked_labels,
-    label_collections=label_collections)
+    label_collections=label_collections,
+    label_gains=label_gains,
+    collection_gains=collection_gains)
   return audiostream, inference, tracker
 
 
@@ -142,7 +144,8 @@ def wait_for_next_inference(last_inference_at, inference_interval):
 
 
 def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
-           tracked_labels=None, label_collections=None, samplerate=32000,
+           tracked_labels=None, label_collections=None, label_gains=None,
+           collection_gains=None, samplerate=32000,
            audio_chunk_length=1024, ringbuffer_length=40000,
            model_winsize=1024, stft_hopsize=512,
            stft_window="hann", n_mels=64, mel_fmin=50,
@@ -165,6 +168,7 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
                table_fontsize=table_fontsize)
       runtime = build_runtime(
         model_path, all_labels, tracked_labels, label_collections,
+        label_gains, collection_gains,
         samplerate, audio_chunk_length, ringbuffer_length,
         model_winsize, stft_hopsize, stft_window,
         n_mels, mel_fmin, mel_fmax, input_device_index)
@@ -218,7 +222,7 @@ class HeadlessDemoApp:
   """
 
   def __init__(self, model_path, all_labels, tracked_labels=None,
-      label_collections=None,
+      label_collections=None, label_gains=None, collection_gains=None,
          samplerate=32000, audio_chunk_length=1024,
          ringbuffer_length=40000, model_winsize=1024,
          stft_hopsize=512, stft_window="hann", n_mels=64,
@@ -227,6 +231,7 @@ class HeadlessDemoApp:
          log_path=None, input_device_index=None):
     runtime = build_runtime(
       model_path, all_labels, tracked_labels, label_collections,
+      label_gains, collection_gains,
       samplerate, audio_chunk_length, ringbuffer_length,
       model_winsize, stft_hopsize, stft_window,
       n_mels, mel_fmin, mel_fmax, input_device_index)
@@ -377,6 +382,8 @@ class ConfDef:
     ALL_LABELS_PATH: str = AUDIOSET_LABELS_PATH
     SUBSET_LABELS_PATH: Optional[str] = None
     LABEL_COLLECTIONS_PATH: Optional[str] = None
+    LABEL_GAINS: Dict[str, float] = field(default_factory=dict)
+    COLLECTION_GAINS: Dict[str, float] = field(default_factory=dict)
     MODEL_PATH: str = os.path.join(
         "models", "Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth")
     #
@@ -518,6 +525,7 @@ if __name__ == '__main__':
   if CONF.HEADLESS:
     demo = HeadlessDemoApp(
       CONF.MODEL_PATH, all_labels, subset_labels, label_collections,
+      CONF.LABEL_GAINS, CONF.COLLECTION_GAINS,
       CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
       CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
       CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
@@ -531,6 +539,7 @@ if __name__ == '__main__':
       demo = create_gui_app(
         AI4S_BANNER_PATH, logo_paths, CONF.MODEL_PATH,
         all_labels, subset_labels, label_collections,
+        CONF.LABEL_GAINS, CONF.COLLECTION_GAINS,
         CONF.SAMPLERATE, CONF.AUDIO_CHUNK_LENGTH, CONF.RINGBUFFER_LENGTH,
         CONF.MODEL_WINSIZE, CONF.STFT_HOPSIZE, CONF.STFT_WINDOW,
         CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,

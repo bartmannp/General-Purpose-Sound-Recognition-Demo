@@ -132,7 +132,8 @@ class PredictionTracker:
     """
 
     def __init__(self, all_labels, allow_list=None, deny_list=None,
-                 label_collections=None):
+                 label_collections=None, label_gains=None,
+                 collection_gains=None):
         """
         :param all_labels: List with all categories as returned by the model.
         :param allow_list: If not ``None``, contains the allowed categories.
@@ -141,9 +142,28 @@ class PredictionTracker:
           ``(collection_name, [class_name, ...])`` tuples. Each collection is
           exposed as a virtual label whose probability is the sum of all member
           class probabilities.
+        :param label_gains: Optional ``{label_name: gain}`` multipliers. A
+          gain of ``1.0`` is neutral.
+        :param collection_gains: Optional ``{collection_name: gain}``
+          multipliers applied to virtual collection probabilities.
         """
         self.all_labels = all_labels
         self.all_lbls_to_idxs = {l: i for i, l in enumerate(all_labels)}
+        self.label_gains = []
+        if label_gains is None:
+            label_gains = {}
+        if collection_gains is None:
+            collection_gains = {}
+
+        def _gain_for(name, gains):
+            gain = float(gains.get(name, 1.0))
+            if gain < 0:
+                raise ValueError(
+                    f"Invalid negative gain for '{name}': {gain}. "
+                    "Gains must be >= 0."
+                )
+            return gain
+
         if allow_list is None:
             allow_list = all_labels
         if deny_list is None:
@@ -155,6 +175,9 @@ class PredictionTracker:
             self.labels = base_labels
             self.label_idx_groups = [np.array([self.all_lbls_to_idxs[label]])
                                      for label in self.labels]
+            self.label_gains = [
+                _gain_for(label, label_gains) for label in self.labels
+            ]
         else:
             self.labels = []
             self.label_idx_groups = []
@@ -173,6 +196,11 @@ class PredictionTracker:
                     continue
                 self.labels.append(collection_name)
                 self.label_idx_groups.append(np.array(sorted(member_idxs)))
+                if collection_name in collection_gains:
+                    gain = _gain_for(collection_name, collection_gains)
+                else:
+                    gain = _gain_for(collection_name, label_gains)
+                self.label_gains.append(gain)
 
     def __call__(self, model_probs, top_k=6, sorted_by_p=True):
         """
@@ -188,6 +216,8 @@ class PredictionTracker:
         tracked_probs = np.array([
             model_probs[idx_group].sum() for idx_group in self.label_idx_groups
         ])
+        if self.label_gains:
+            tracked_probs = tracked_probs * np.array(self.label_gains)
         top_k = min(top_k, len(tracked_probs))
         if top_k == len(tracked_probs):
             top_idxs = np.arange(len(tracked_probs))

@@ -4,6 +4,10 @@
 ALL_LABELS_PATH: sed_demo/assets/audioset_labels.csv
 SUBSET_LABELS_PATH: null
 LABEL_COLLECTIONS_PATH: null
+# Optional probability gains (sensitivity multipliers).
+# 1.0 is neutral, >1.0 increases sensitivity, <1.0 decreases sensitivity.
+LABEL_GAINS: {}
+COLLECTION_GAINS: {}
 MODEL_PATH: models/Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth
 
 SAMPLERATE: 32000
