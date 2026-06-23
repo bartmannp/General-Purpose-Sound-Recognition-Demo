@@ -12,8 +12,8 @@ SELECT_AUDIO_DEVICE: true
 
 # Optional sensitivity multipliers (1.0 is neutral).
 LABEL_GAINS:
-	"Walk, footsteps": 1.2
-	"Toilet flush": 0.8
+    "Walk, footsteps": 1.2
+    "Toilet flush": 0.8
 COLLECTION_GAINS:
-	"door bell": 1.3
-	"boiling water": 0.9
+    "door bell": 1.3
+    "boiling water": 0.9
