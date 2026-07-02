@@ -221,6 +221,8 @@ class HeadlessDemoApp:
   Console runtime for low-overhead or non-desktop deployments.
   """
 
+  REDUCED_LOG_HEARTBEAT_SECONDS = 60.0
+
   def __init__(self, model_path, all_labels, tracked_labels=None,
       label_collections=None, label_gains=None, collection_gains=None,
          samplerate=32000, audio_chunk_length=1024,
@@ -228,7 +230,8 @@ class HeadlessDemoApp:
          stft_hopsize=512, stft_window="hann", n_mels=64,
       mel_fmin=50, mel_fmax=14000, inference_interval=0.25, top_k=5,
          print_interval=1.0, min_confidence=0.15,
-         log_path=None, input_device_index=None):
+        log_path=None, input_device_index=None,
+        reduced_log_output=False):
     runtime = build_runtime(
       model_path, all_labels, tracked_labels, label_collections,
       label_gains, collection_gains,
@@ -242,6 +245,7 @@ class HeadlessDemoApp:
     self.min_confidence = min_confidence
     self.log_path = log_path
     self.log_handle = None
+    self.reduced_log_output = reduced_log_output
 
   def _timestamp(self):
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -291,6 +295,8 @@ class HeadlessDemoApp:
       if pval >= self.min_confidence
     ]
     if not visible:
+      if self.reduced_log_output:
+        return None
       return "No predictions above threshold"
     return " | ".join(visible)
 
@@ -306,6 +312,7 @@ class HeadlessDemoApp:
     self._emit(self._describe_device())
     last_output = None
     last_print = 0.0
+    last_emit = time.monotonic()
     self.audiostream.start()
     try:
       last_inference_at = 0.0
@@ -316,10 +323,16 @@ class HeadlessDemoApp:
           self.inference(self.audiostream.read()), self.top_k)
         output = self._format_predictions(predictions)
         now = time.monotonic()
-        if output != last_output or (now - last_print) >= self.print_interval:
+        if output is not None and (
+            output != last_output or (now - last_print) >= self.print_interval):
           self._emit(output)
           last_output = output
           last_print = now
+          last_emit = now
+        elif self.reduced_log_output and (
+            now - last_emit) >= self.REDUCED_LOG_HEARTBEAT_SECONDS:
+          self._emit("No detections above threshold (heartbeat)")
+          last_emit = now
     except KeyboardInterrupt:
       self._emit("Stopping...")
     finally:
@@ -404,6 +417,7 @@ class ConfDef:
     HEADLESS_PRINT_INTERVAL: float = 1.0
     HEADLESS_MIN_CONFIDENCE: float = 0.15
     HEADLESS_LOG_PATH: Optional[str] = None
+    HEADLESS_REDUCED_LOG_OUTPUT: bool = False
     # frontend
     TOP_K: int = 6
     TITLE_FONTSIZE: int = 28
@@ -532,7 +546,7 @@ if __name__ == '__main__':
       CONF.INFERENCE_INTERVAL,
       CONF.TOP_K, CONF.HEADLESS_PRINT_INTERVAL,
       CONF.HEADLESS_MIN_CONFIDENCE, CONF.HEADLESS_LOG_PATH,
-      audio_device_index)
+      audio_device_index, CONF.HEADLESS_REDUCED_LOG_OUTPUT)
     demo.run()
   else:
     try:

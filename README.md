@@ -176,6 +176,8 @@ Runtime mode and headless output:
 * HEADLESS: If true, run without GUI and print predictions to console.
 * HEADLESS_PRINT_INTERVAL: Maximum interval between printed lines in headless mode.
 * HEADLESS_MIN_CONFIDENCE: Hide predictions below this confidence.
+* HEADLESS_REDUCED_LOG_OUTPUT: If true, omit no-detection lines and emit a
+	heartbeat line once per minute if no other line was printed.
 * HEADLESS_LOG_PATH: Optional log file path for headless mode.
 	Supported tokens: $year, $month, $day, $hour, $minute, $seconds, $timestamp.
 	Example value: logs/sound-recognition_$timestamp.log
@@ -224,6 +226,7 @@ SELECT_AUDIO_DEVICE: true
 HEADLESS: true
 HEADLESS_PRINT_INTERVAL: 1.0
 HEADLESS_MIN_CONFIDENCE: 0.15
+HEADLESS_REDUCED_LOG_OUTPUT: false
 HEADLESS_LOG_PATH: logs/session_$timestamp.log
 TOP_K: 6
 TITLE_FONTSIZE: 28
@@ -329,6 +332,8 @@ You can tune headless output with:
 	updates.
 * `HEADLESS_PRINT_INTERVAL=1.0` to control how often predictions are printed.
 * `HEADLESS_MIN_CONFIDENCE=0.15` to suppress low-confidence results.
+* `HEADLESS_REDUCED_LOG_OUTPUT=True` to skip no-detection lines and keep one
+	heartbeat line per minute when idle.
 * `HEADLESS_LOG_PATH='sound-recognition.log'` to append timestamped output to a log file.
 
 Each headless output line is timestamped, both in the terminal and in the
