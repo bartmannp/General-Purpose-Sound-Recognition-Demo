@@ -28,6 +28,7 @@ HEADLESS: false
 HEADLESS_PRINT_INTERVAL: 1.0
 HEADLESS_MIN_CONFIDENCE: 0.15
 HEADLESS_REDUCED_LOG_OUTPUT: false
+STOP_AFTER_MINUTES: null
 # Supported HEADLESS_LOG_PATH tokens:
 # $year, $month, $day, $hour, $minute, $seconds, $timestamp
 # Example: logs/session_$timestamp.log

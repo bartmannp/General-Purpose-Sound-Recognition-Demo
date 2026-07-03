@@ -160,7 +160,8 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
            model_winsize=1024, stft_hopsize=512,
            stft_window="hann", n_mels=64, mel_fmin=50,
            mel_fmax=14000, inference_interval=0.25, top_k=5, title_fontsize=22,
-           table_fontsize=18, input_device_index=None):
+           table_fontsize=18, input_device_index=None,
+           stop_after_minutes=None):
   from sed_demo.gui import DemoFrontend
 
   class DemoApp(DemoFrontend):
@@ -186,6 +187,8 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
       self.top_k = top_k
       self.inference_interval = inference_interval
       self.thread = None
+      self.stop_after_minutes = stop_after_minutes
+      self.auto_stop_after_id = None
       self.protocol("WM_DELETE_WINDOW", self.exit_demo)
 
     def inference_loop(self):
@@ -202,14 +205,36 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
 
     def start(self):
       self.audiostream.start()
+      self._schedule_auto_stop()
       self.thread = Thread(target=self.inference_loop)
       self.thread.daemon = True
       self.thread.start()
 
     def stop(self):
+      self._cancel_auto_stop()
       self.audiostream.stop()
 
+    def _schedule_auto_stop(self):
+      self._cancel_auto_stop()
+      if self.stop_after_minutes is None or self.stop_after_minutes <= 0:
+        return
+      delay_ms = int(self.stop_after_minutes * 60 * 1000)
+      self.auto_stop_after_id = self.after(delay_ms, self._auto_stop)
+
+    def _cancel_auto_stop(self):
+      if self.auto_stop_after_id is not None:
+        self.after_cancel(self.auto_stop_after_id)
+        self.auto_stop_after_id = None
+
+    def _auto_stop(self):
+      self.auto_stop_after_id = None
+      if not self.is_running():
+        return
+      print(f"Stopping automatically after {self.stop_after_minutes} minute(s)...")
+      self.exit_demo()
+
     def exit_demo(self):
+      self._cancel_auto_stop()
       if self.is_running():
         print("Waiting for threads to finish...")
         self.toggle_start()
@@ -241,7 +266,7 @@ class HeadlessDemoApp:
       mel_fmin=50, mel_fmax=14000, inference_interval=0.25, top_k=5,
          print_interval=1.0, min_confidence=0.15,
         log_path=None, input_device_index=None,
-        reduced_log_output=False):
+        reduced_log_output=False, stop_after_minutes=None):
     runtime = build_runtime(
       model_path, all_labels, tracked_labels, label_collections,
       label_gains, collection_gains,
@@ -256,6 +281,7 @@ class HeadlessDemoApp:
     self.log_path = log_path
     self.log_handle = None
     self.reduced_log_output = reduced_log_output
+    self.stop_after_minutes = stop_after_minutes
     self._stop_requested = False
 
   def _timestamp(self):
@@ -319,6 +345,7 @@ class HeadlessDemoApp:
 
   def run(self):
     previous_sigint_handler = None
+    stop_at = None
     if self.log_path:
       resolved_log_path = self._resolve_log_path(self.log_path)
       log_dir = os.path.dirname(os.path.abspath(resolved_log_path))
@@ -327,6 +354,10 @@ class HeadlessDemoApp:
       self.log_handle = open(resolved_log_path, "a", encoding="utf-8")
       self._emit(f"Logging to {resolved_log_path}")
     self._emit("Headless mode active. Press Ctrl+C to stop.")
+    if self.stop_after_minutes is not None and self.stop_after_minutes > 0:
+      stop_at = time.monotonic() + (self.stop_after_minutes * 60)
+      self._emit(
+        f"Auto-stop enabled: shutting down after {self.stop_after_minutes} minute(s).")
     self._emit(self._describe_device())
     last_output = None
     last_print = 0.0
@@ -343,6 +374,9 @@ class HeadlessDemoApp:
           self.inference_interval,
           should_stop=lambda: self._stop_requested)
         if self._stop_requested:
+          break
+        if stop_at is not None and time.monotonic() >= stop_at:
+          self._request_stop()
           break
         predictions = self.tracker(
           self.inference(self.audiostream.read()), self.top_k)
@@ -449,6 +483,7 @@ class ConfDef:
     HEADLESS_MIN_CONFIDENCE: float = 0.15
     HEADLESS_LOG_PATH: Optional[str] = None
     HEADLESS_REDUCED_LOG_OUTPUT: bool = False
+    STOP_AFTER_MINUTES: Optional[float] = None
     # frontend
     TOP_K: int = 6
     TITLE_FONTSIZE: int = 28
@@ -577,7 +612,8 @@ if __name__ == '__main__':
       CONF.INFERENCE_INTERVAL,
       CONF.TOP_K, CONF.HEADLESS_PRINT_INTERVAL,
       CONF.HEADLESS_MIN_CONFIDENCE, CONF.HEADLESS_LOG_PATH,
-      audio_device_index, CONF.HEADLESS_REDUCED_LOG_OUTPUT)
+      audio_device_index, CONF.HEADLESS_REDUCED_LOG_OUTPUT,
+      CONF.STOP_AFTER_MINUTES)
     demo.run()
   else:
     try:
@@ -590,7 +626,7 @@ if __name__ == '__main__':
         CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
         CONF.INFERENCE_INTERVAL,
         CONF.TOP_K, CONF.TITLE_FONTSIZE, CONF.TABLE_FONTSIZE,
-        audio_device_index)
+        audio_device_index, CONF.STOP_AFTER_MINUTES)
     except ImportError as exc:
       raise RuntimeError(
         "Tkinter GUI dependencies are unavailable. Install the GUI system "
