@@ -14,6 +14,7 @@ python -m sed_demo TOP_K=10 TABLE_FONTSIZE=25
 
 from threading import Thread
 import os
+import signal
 import sys
 import time
 from datetime import datetime
@@ -131,15 +132,24 @@ def build_runtime(model_path, all_labels, tracked_labels=None,
   return audiostream, inference, tracker
 
 
-def wait_for_next_inference(last_inference_at, inference_interval):
+def wait_for_next_inference(
+    last_inference_at,
+    inference_interval,
+    should_stop=None,
+    max_sleep_slice=0.1):
   if inference_interval <= 0:
     return time.monotonic()
 
   now = time.monotonic()
   remaining = inference_interval - (now - last_inference_at)
   if remaining > 0:
-    time.sleep(remaining)
-    return time.monotonic()
+    while remaining > 0:
+      if should_stop is not None and should_stop():
+        return time.monotonic()
+      time.sleep(min(remaining, max_sleep_slice))
+      now = time.monotonic()
+      remaining = inference_interval - (now - last_inference_at)
+    return now
   return now
 
 
@@ -246,6 +256,7 @@ class HeadlessDemoApp:
     self.log_path = log_path
     self.log_handle = None
     self.reduced_log_output = reduced_log_output
+    self._stop_requested = False
 
   def _timestamp(self):
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -280,6 +291,12 @@ class HeadlessDemoApp:
       self.log_handle.write(line + "\n")
       self.log_handle.flush()
 
+  def _request_stop(self):
+    self._stop_requested = True
+
+  def _handle_sigint(self, _signum, _frame):
+    self._request_stop()
+
   def _describe_device(self):
     device = self.audiostream.input_device_info
     return (
@@ -301,6 +318,7 @@ class HeadlessDemoApp:
     return " | ".join(visible)
 
   def run(self):
+    previous_sigint_handler = None
     if self.log_path:
       resolved_log_path = self._resolve_log_path(self.log_path)
       log_dir = os.path.dirname(os.path.abspath(resolved_log_path))
@@ -313,12 +331,19 @@ class HeadlessDemoApp:
     last_output = None
     last_print = 0.0
     last_emit = time.monotonic()
+    if signal.getsignal(signal.SIGINT) == signal.default_int_handler:
+      previous_sigint_handler = signal.getsignal(signal.SIGINT)
+      signal.signal(signal.SIGINT, self._handle_sigint)
     self.audiostream.start()
     try:
       last_inference_at = 0.0
-      while True:
+      while not self._stop_requested:
         last_inference_at = wait_for_next_inference(
-          last_inference_at, self.inference_interval)
+          last_inference_at,
+          self.inference_interval,
+          should_stop=lambda: self._stop_requested)
+        if self._stop_requested:
+          break
         predictions = self.tracker(
           self.inference(self.audiostream.read()), self.top_k)
         output = self._format_predictions(predictions)
@@ -334,11 +359,17 @@ class HeadlessDemoApp:
           self._emit("No detections above threshold (heartbeat)")
           last_emit = now
     except KeyboardInterrupt:
-      self._emit("Stopping...")
+      self._request_stop()
     finally:
-      self.audiostream.terminate()
-      if self.log_handle is not None:
-        self.log_handle.close()
+      if self._stop_requested:
+        self._emit("Stopping...")
+      try:
+        self.audiostream.terminate()
+      finally:
+        if self.log_handle is not None:
+          self.log_handle.close()
+        if previous_sigint_handler is not None:
+          signal.signal(signal.SIGINT, previous_sigint_handler)
 
 
 def describe_audio_device(device_info):
