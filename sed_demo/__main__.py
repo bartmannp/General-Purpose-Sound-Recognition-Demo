@@ -266,7 +266,8 @@ class HeadlessDemoApp:
       mel_fmin=50, mel_fmax=14000, inference_interval=0.25, top_k=5,
          print_interval=1.0, min_confidence=0.15,
         log_path=None, input_device_index=None,
-        reduced_log_output=False, stop_after_minutes=None):
+        reduced_log_output=False, stop_after_minutes=None,
+        log_max_minutes=None):
     runtime = build_runtime(
       model_path, all_labels, tracked_labels, label_collections,
       label_gains, collection_gains,
@@ -280,9 +281,13 @@ class HeadlessDemoApp:
     self.min_confidence = min_confidence
     self.log_path = log_path
     self.log_handle = None
+    self.log_max_minutes = log_max_minutes
     self.reduced_log_output = reduced_log_output
     self.stop_after_minutes = stop_after_minutes
     self._stop_requested = False
+    self._log_opened_at = None
+    self._active_log_path = None
+    self._log_rotation_index = 0
 
   def _timestamp(self):
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -310,7 +315,42 @@ class HeadlessDemoApp:
       resolved = resolved.replace(token, value)
     return resolved
 
-  def _emit(self, message):
+  def _open_log_handle(self):
+    resolved_log_path = self._resolve_log_path(self.log_path)
+    if self._active_log_path is not None and resolved_log_path == self._active_log_path:
+      root, ext = os.path.splitext(resolved_log_path)
+      resolved_log_path = f"{root}_{self._log_rotation_index:03d}{ext}"
+
+    log_dir = os.path.dirname(os.path.abspath(resolved_log_path))
+    if log_dir:
+      os.makedirs(log_dir, exist_ok=True)
+
+    self.log_handle = open(resolved_log_path, "a", encoding="utf-8")
+    self._active_log_path = resolved_log_path
+    self._log_opened_at = time.monotonic()
+
+  def _rotate_log_if_needed(self, now):
+    if self.log_handle is None:
+      return
+    if self.log_max_minutes is None or self.log_max_minutes <= 0:
+      return
+    if self._log_opened_at is None:
+      return
+    if (now - self._log_opened_at) < (self.log_max_minutes * 60):
+      return
+
+    self.log_handle.close()
+    self.log_handle = None
+    self._log_rotation_index += 1
+    self._open_log_handle()
+    self._emit(
+      f"Log duration limit reached ({self.log_max_minutes} minute(s)); "
+      f"continuing in {self._active_log_path}",
+      allow_rotation=False)
+
+  def _emit(self, message, allow_rotation=True):
+    if allow_rotation and self.log_handle is not None:
+      self._rotate_log_if_needed(time.monotonic())
     line = f"[{self._timestamp()}] {message}"
     print(line)
     if self.log_handle is not None:
@@ -347,13 +387,13 @@ class HeadlessDemoApp:
     previous_sigint_handler = None
     stop_at = None
     if self.log_path:
-      resolved_log_path = self._resolve_log_path(self.log_path)
-      log_dir = os.path.dirname(os.path.abspath(resolved_log_path))
-      if log_dir:
-        os.makedirs(log_dir, exist_ok=True)
-      self.log_handle = open(resolved_log_path, "a", encoding="utf-8")
-      self._emit(f"Logging to {resolved_log_path}")
+      self._open_log_handle()
+      self._emit(f"Logging to {self._active_log_path}")
     self._emit("Headless mode active. Press Ctrl+C to stop.")
+    if self.log_max_minutes is not None and self.log_max_minutes > 0:
+      self._emit(
+        f"Log rotation enabled: starting a new file every "
+        f"{self.log_max_minutes} minute(s).")
     if self.stop_after_minutes is not None and self.stop_after_minutes > 0:
       stop_at = time.monotonic() + (self.stop_after_minutes * 60)
       self._emit(
@@ -482,6 +522,7 @@ class ConfDef:
     HEADLESS_PRINT_INTERVAL: float = 1.0
     HEADLESS_MIN_CONFIDENCE: float = 0.15
     HEADLESS_LOG_PATH: Optional[str] = None
+    HEADLESS_LOG_MAX_MINUTES: Optional[float] = None
     HEADLESS_REDUCED_LOG_OUTPUT: bool = False
     STOP_AFTER_MINUTES: Optional[float] = None
     # frontend
@@ -613,7 +654,7 @@ if __name__ == '__main__':
       CONF.TOP_K, CONF.HEADLESS_PRINT_INTERVAL,
       CONF.HEADLESS_MIN_CONFIDENCE, CONF.HEADLESS_LOG_PATH,
       audio_device_index, CONF.HEADLESS_REDUCED_LOG_OUTPUT,
-      CONF.STOP_AFTER_MINUTES)
+      CONF.STOP_AFTER_MINUTES, CONF.HEADLESS_LOG_MAX_MINUTES)
     demo.run()
   else:
     try:
