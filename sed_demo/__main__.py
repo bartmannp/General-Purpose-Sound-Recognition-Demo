@@ -267,7 +267,7 @@ class HeadlessDemoApp:
          print_interval=1.0, min_confidence=0.15,
         log_path=None, input_device_index=None,
         reduced_log_output=False, stop_after_minutes=None,
-        log_max_minutes=None):
+        log_max_minutes=None, collection_detail_output=False):
     runtime = build_runtime(
       model_path, all_labels, tracked_labels, label_collections,
       label_gains, collection_gains,
@@ -283,6 +283,7 @@ class HeadlessDemoApp:
     self.log_handle = None
     self.log_max_minutes = log_max_minutes
     self.reduced_log_output = reduced_log_output
+    self.collection_detail_output = collection_detail_output
     self.stop_after_minutes = stop_after_minutes
     self._stop_requested = False
     self._log_opened_at = None
@@ -371,9 +372,9 @@ class HeadlessDemoApp:
       f"default rate {device['defaultSampleRate']:.0f} Hz)"
     )
 
-  def _format_predictions(self, predictions):
+  def _format_predictions(self, predictions, model_probs):
     visible = [
-      f"{clsname}: {pval:.2f}"
+      (clsname, pval)
       for clsname, pval in predictions
       if pval >= self.min_confidence
     ]
@@ -381,7 +382,17 @@ class HeadlessDemoApp:
       if self.reduced_log_output:
         return None
       return "No predictions above threshold"
-    return " | ".join(visible)
+
+    formatted = []
+    for clsname, pval in visible:
+      item = f"{clsname}: {pval:.2f}"
+      if self.collection_detail_output:
+        breakdown = self.tracker.collection_breakdown(clsname, model_probs)
+        if breakdown:
+          details = ", ".join(f"{value:.2f}" for value in breakdown)
+          item = f"{item} ({details})"
+      formatted.append(item)
+    return " | ".join(formatted)
 
   def run(self):
     previous_sigint_handler = None
@@ -418,9 +429,9 @@ class HeadlessDemoApp:
         if stop_at is not None and time.monotonic() >= stop_at:
           self._request_stop()
           break
-        predictions = self.tracker(
-          self.inference(self.audiostream.read()), self.top_k)
-        output = self._format_predictions(predictions)
+        model_probs = self.inference(self.audiostream.read())
+        predictions = self.tracker(model_probs, self.top_k)
+        output = self._format_predictions(predictions, model_probs)
         now = time.monotonic()
         if output is not None and (
             output != last_output or (now - last_print) >= self.print_interval):
@@ -524,6 +535,7 @@ class ConfDef:
     HEADLESS_LOG_PATH: Optional[str] = None
     HEADLESS_LOG_MAX_MINUTES: Optional[float] = None
     HEADLESS_REDUCED_LOG_OUTPUT: bool = False
+    HEADLESS_COLLECTION_DETAIL_OUTPUT: bool = False
     STOP_AFTER_MINUTES: Optional[float] = None
     # frontend
     TOP_K: int = 6
@@ -654,7 +666,8 @@ if __name__ == '__main__':
       CONF.TOP_K, CONF.HEADLESS_PRINT_INTERVAL,
       CONF.HEADLESS_MIN_CONFIDENCE, CONF.HEADLESS_LOG_PATH,
       audio_device_index, CONF.HEADLESS_REDUCED_LOG_OUTPUT,
-      CONF.STOP_AFTER_MINUTES, CONF.HEADLESS_LOG_MAX_MINUTES)
+      CONF.STOP_AFTER_MINUTES, CONF.HEADLESS_LOG_MAX_MINUTES,
+      CONF.HEADLESS_COLLECTION_DETAIL_OUTPUT)
     demo.run()
   else:
     try:

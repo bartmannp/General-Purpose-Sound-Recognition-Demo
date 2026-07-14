@@ -341,12 +341,25 @@ You can tune headless output with:
 * `HEADLESS_MIN_CONFIDENCE=0.15` to suppress low-confidence results.
 * `HEADLESS_REDUCED_LOG_OUTPUT=True` to skip no-detection lines and keep one
 	heartbeat line per minute when idle.
+* `HEADLESS_COLLECTION_DETAIL_OUTPUT=True` to append per-member numeric values
+	for collection outputs in parentheses.
 * `STOP_AFTER_MINUTES=120` to stop the app automatically after two hours.
 * `HEADLESS_LOG_MAX_MINUTES=60` to rotate logfile output every hour.
 * `HEADLESS_LOG_PATH='sound-recognition.log'` to append timestamped output to a log file.
 
 Each headless output line is timestamped, both in the terminal and in the
 optional log file.
+
+When `LABEL_COLLECTIONS_PATH` is active and
+`HEADLESS_COLLECTION_DETAIL_OUTPUT=True`, collection lines can look like:
+
+```
+[2026-07-13 09:41:02] Speech aggregate: 1.30 (0.10, 0.30, 0.00, 0.90, 0.00, 0.00)
+```
+
+The number before parentheses is the collection score. Values in parentheses
+are the accumulated contributions of collection members, ordered exactly as
+listed in the collection CSV file.
 
 
 ---

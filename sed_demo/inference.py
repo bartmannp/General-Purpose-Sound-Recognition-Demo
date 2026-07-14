@@ -148,6 +148,7 @@ class PredictionTracker:
           multipliers applied to virtual collection probabilities.
         """
         self.all_labels = all_labels
+        self.has_collections = label_collections is not None
         self.all_lbls_to_idxs = {l: i for i, l in enumerate(all_labels)}
         self.label_gains = []
         if label_gains is None:
@@ -195,12 +196,33 @@ class PredictionTracker:
                 if not member_idxs:
                     continue
                 self.labels.append(collection_name)
-                self.label_idx_groups.append(np.array(sorted(member_idxs)))
+                # Keep CSV order for member indices so collection detail output
+                # follows the exact order configured by the user.
+                self.label_idx_groups.append(np.array(member_idxs, dtype=int))
                 if collection_name in collection_gains:
                     gain = _gain_for(collection_name, collection_gains)
                 else:
                     gain = _gain_for(collection_name, label_gains)
                 self.label_gains.append(gain)
+
+    def collection_breakdown(self, label, model_probs):
+        """
+        Return per-member accumulated values for a collection label.
+
+        Values follow the same order as configured in the collections CSV and
+        include the configured gain multiplier for that collection.
+        Returns ``None`` when collections are not active or the label is not a
+        collection output.
+        """
+        if not self.has_collections:
+            return None
+        try:
+            label_idx = self.labels.index(label)
+        except ValueError:
+            return None
+        idx_group = self.label_idx_groups[label_idx]
+        gain = self.label_gains[label_idx] if self.label_gains else 1.0
+        return (model_probs[idx_group] * gain).tolist()
 
     def __call__(self, model_probs, top_k=6, sorted_by_p=True):
         """
