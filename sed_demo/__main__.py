@@ -88,9 +88,17 @@ def choose_specific_app_conf_interactively(entries):
   for idx, (_, key, path) in enumerate(entries):
     print(f"  [{idx}] {key}: {path}")
 
+  if sys.stdin is None or not sys.stdin.isatty():
+    print("No interactive input available; defaulting to config [0].")
+    return entries[0]
+
   while True:
-    selected = input(
-      f"Select config to load [0-{len(entries) - 1}] (default 0): ").strip()
+    try:
+      selected = input(
+        f"Select config to load [0-{len(entries) - 1}] (default 0): ").strip()
+    except EOFError:
+      print("No user input received; defaulting to config [0].")
+      return entries[0]
     if selected == "":
       return entries[0]
     try:

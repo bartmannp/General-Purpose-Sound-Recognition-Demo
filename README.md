@@ -204,7 +204,8 @@ You can define multiple specific-app configs in the main YAML:
 * SPECIFIC_APP_CONFS_2: path/to/profile_c.yaml
 
 If more than one SPECIFIC_APP_CONFS_N entry is present in the main YAML,
-the app asks at startup which one to load.
+the app asks at startup which one to load. When no interactive input is
+available, it automatically falls back to SPECIFIC_APP_CONFS_0.
 
 ### Example: main config with all common options
 
