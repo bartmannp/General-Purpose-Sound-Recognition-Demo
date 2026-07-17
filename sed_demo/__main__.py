@@ -324,11 +324,16 @@ class HeadlessDemoApp:
       resolved = resolved.replace(token, value)
     return resolved
 
-  def _open_log_handle(self):
+  def _build_resolved_log_path(self):
     resolved_log_path = self._resolve_log_path(self.log_path)
     if self._active_log_path is not None and resolved_log_path == self._active_log_path:
       root, ext = os.path.splitext(resolved_log_path)
       resolved_log_path = f"{root}_{self._log_rotation_index:03d}{ext}"
+    return resolved_log_path
+
+  def _open_log_handle(self, resolved_log_path=None):
+    if resolved_log_path is None:
+      resolved_log_path = self._build_resolved_log_path()
 
     log_dir = os.path.dirname(os.path.abspath(resolved_log_path))
     if log_dir:
@@ -348,10 +353,16 @@ class HeadlessDemoApp:
     if (now - self._log_opened_at) < (self.log_max_minutes * 60):
       return
 
+    previous_log_path = self._active_log_path
+    self._log_rotation_index += 1
+    next_log_path = self._build_resolved_log_path()
+    self.log_handle.write(f"[{self._timestamp()}] Next logfile: {next_log_path}\n")
+    self.log_handle.flush()
     self.log_handle.close()
     self.log_handle = None
-    self._log_rotation_index += 1
-    self._open_log_handle()
+    self._open_log_handle(next_log_path)
+    self.log_handle.write(f"[{self._timestamp()}] Previous logfile: {previous_log_path}\n")
+    self.log_handle.flush()
     self._emit(
       f"Log duration limit reached ({self.log_max_minutes} minute(s)); "
       f"continuing in {self._active_log_path}",
