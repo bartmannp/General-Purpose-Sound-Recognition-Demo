@@ -13,6 +13,7 @@ python -m sed_demo TOP_K=10 TABLE_FONTSIZE=25
 
 
 from threading import Thread
+import importlib.util
 import os
 import signal
 import sys
@@ -37,6 +38,38 @@ DEFAULT_CONFIG_CANDIDATES = (
     "options.default.yaml",
     DEFAULT_CONFIG_PATH,
 )
+
+
+def load_submodule_model(model_type, sample_rate, window_size, hop_size,
+                         mel_bins, fmin, fmax, classes_num):
+  """Create a PANNs model defined by the bundled audioset_tagging_cnn module."""
+  pytorch_dir = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "submodules", "audioset_tagging_cnn", "pytorch")
+  models_path = os.path.join(pytorch_dir, "models.py")
+  if not os.path.isfile(models_path):
+    raise FileNotFoundError(
+      f"PANNs model definitions were not found at {models_path}.")
+
+  sys.path.insert(0, pytorch_dir)
+  try:
+    spec = importlib.util.spec_from_file_location("panns_models", models_path)
+    if spec is None or spec.loader is None:
+      raise ImportError(f"Could not import PANNs models from {models_path}.")
+    panns_models = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(panns_models)
+  finally:
+    sys.path.remove(pytorch_dir)
+
+  try:
+    model_class = getattr(panns_models, model_type)
+  except AttributeError as exc:
+    raise ValueError(
+      f"Unknown MODEL_TYPE '{model_type}'. Choose a class from "
+      "submodules/audioset_tagging_cnn/pytorch/models.py.") from exc
+
+  return model_class(sample_rate, window_size, hop_size, mel_bins, fmin,
+                     fmax, classes_num)
 
 
 def resolve_default_config_path():
@@ -116,7 +149,8 @@ def build_runtime(model_path, all_labels, tracked_labels=None,
           samplerate=32000, audio_chunk_length=1024,
           ringbuffer_length=40000, model_winsize=1024,
           stft_hopsize=512, stft_window="hann", n_mels=64,
-          mel_fmin=50, mel_fmax=14000, input_device_index=None):
+          mel_fmin=50, mel_fmax=14000, input_device_index=None,
+          all_models=False, model_type="Cnn14"):
   """
   Build the shared audio/model inference components used by both GUI and
   headless runtimes.
@@ -124,14 +158,19 @@ def build_runtime(model_path, all_labels, tracked_labels=None,
   audiostream = AsynchAudioInputStream(
     samplerate, audio_chunk_length, ringbuffer_length, input_device_index)
   num_audioset_classes = len(all_labels)
-  model = Cnn9_GMP_64x64(num_audioset_classes)
+  if all_models:
+    model = load_submodule_model(
+      model_type, samplerate, model_winsize, stft_hopsize, n_mels,
+      mel_fmin, mel_fmax, num_audioset_classes)
+  else:
+    model = Cnn9_GMP_64x64(num_audioset_classes)
   checkpoint = torch.load(model_path,
               map_location=lambda storage, loc: storage,
               weights_only=False)
   model.load_state_dict(checkpoint["model"])
   inference = AudioModelInference(
     model, model_winsize, stft_hopsize, samplerate, stft_window,
-    n_mels, mel_fmin, mel_fmax)
+    n_mels, mel_fmin, mel_fmax, input_is_waveform=all_models)
   tracker = PredictionTracker(
     all_labels, allow_list=tracked_labels,
     label_collections=label_collections,
@@ -169,7 +208,7 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
            stft_window="hann", n_mels=64, mel_fmin=50,
            mel_fmax=14000, inference_interval=0.25, top_k=5, title_fontsize=22,
            table_fontsize=18, input_device_index=None,
-           stop_after_minutes=None):
+           stop_after_minutes=None, all_models=False, model_type="Cnn14"):
   from sed_demo.gui import DemoFrontend
 
   class DemoApp(DemoFrontend):
@@ -190,7 +229,7 @@ def create_gui_app(top_banner_path, logo_paths, model_path, all_labels,
         label_gains, collection_gains,
         samplerate, audio_chunk_length, ringbuffer_length,
         model_winsize, stft_hopsize, stft_window,
-        n_mels, mel_fmin, mel_fmax, input_device_index)
+        n_mels, mel_fmin, mel_fmax, input_device_index, all_models, model_type)
       self.audiostream, self.inference, self.tracker = runtime
       self.top_k = top_k
       self.inference_interval = inference_interval
@@ -275,13 +314,14 @@ class HeadlessDemoApp:
          print_interval=1.0, min_confidence=0.15,
         log_path=None, input_device_index=None,
         reduced_log_output=False, stop_after_minutes=None,
-        log_max_minutes=None, collection_detail_output=False):
+        log_max_minutes=None, collection_detail_output=False,
+        all_models=False, model_type="Cnn14"):
     runtime = build_runtime(
       model_path, all_labels, tracked_labels, label_collections,
       label_gains, collection_gains,
       samplerate, audio_chunk_length, ringbuffer_length,
       model_winsize, stft_hopsize, stft_window,
-      n_mels, mel_fmin, mel_fmax, input_device_index)
+      n_mels, mel_fmin, mel_fmax, input_device_index, all_models, model_type)
     self.audiostream, self.inference, self.tracker = runtime
     self.top_k = top_k
     self.inference_interval = inference_interval
@@ -534,6 +574,8 @@ class ConfDef:
     COLLECTION_GAINS: Dict[str, float] = field(default_factory=dict)
     MODEL_PATH: str = os.path.join(
         "models", "Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth")
+    ALL_MODELS: bool = False
+    MODEL_TYPE: str = "Cnn14"
     #
     SAMPLERATE: int = 32000
     AUDIO_CHUNK_LENGTH: int = 1024
@@ -686,7 +728,8 @@ if __name__ == '__main__':
       CONF.HEADLESS_MIN_CONFIDENCE, CONF.HEADLESS_LOG_PATH,
       audio_device_index, CONF.HEADLESS_REDUCED_LOG_OUTPUT,
       CONF.STOP_AFTER_MINUTES, CONF.HEADLESS_LOG_MAX_MINUTES,
-      CONF.HEADLESS_COLLECTION_DETAIL_OUTPUT)
+      CONF.HEADLESS_COLLECTION_DETAIL_OUTPUT, CONF.ALL_MODELS,
+      CONF.MODEL_TYPE)
     demo.run()
   else:
     try:
@@ -699,7 +742,8 @@ if __name__ == '__main__':
         CONF.N_MELS, CONF.MEL_FMIN, CONF.MEL_FMAX,
         CONF.INFERENCE_INTERVAL,
         CONF.TOP_K, CONF.TITLE_FONTSIZE, CONF.TABLE_FONTSIZE,
-        audio_device_index, CONF.STOP_AFTER_MINUTES)
+        audio_device_index, CONF.STOP_AFTER_MINUTES, CONF.ALL_MODELS,
+        CONF.MODEL_TYPE)
     except ImportError as exc:
       raise RuntimeError(
         "Tkinter GUI dependencies are unavailable. Install the GUI system "

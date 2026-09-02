@@ -152,6 +152,11 @@ Audio labels and model:
 * LABEL_GAINS: Optional mapping label_name -> gain. 1.0 is neutral.
 * COLLECTION_GAINS: Optional mapping collection_name -> gain. 1.0 is neutral.
 * MODEL_PATH: Path to the pretrained model checkpoint.
+* ALL_MODELS: Set to `false` (default) to use the demo's CNN9 model. Set to
+	`true` to load a model from
+	`submodules/audioset_tagging_cnn/pytorch/models.py`.
+* MODEL_TYPE: Class name from the submodule models file. Used only when
+	`ALL_MODELS` is `true`, for example `Cnn14`.
 
 Audio and frontend processing:
 
@@ -242,6 +247,30 @@ TABLE_FONTSIZE: 22
 CONFIG_PATH: assets/options.default.yaml
 SPECIFIC_APP_CONFS_0: assets/profiles/home.yaml
 SPECIFIC_APP_CONFS_1: assets/profiles/office.yaml
+
+### Example: PANNs submodule model
+
+Pretrained PANNs checkpoints are available at
+https://zenodo.org/records/3987831. For example, download Cnn14 and configure
+the model-specific frontend values:
+
+```
+wget -O models/Cnn14_mAP=0.431.pth https://zenodo.org/records/3987831/files/Cnn14_mAP%3D0.431.pth?download=1
+
+uv run -m sed_demo \
+	ALL_MODELS=true \
+	MODEL_TYPE=Cnn14 \
+	MODEL_PATH=models/Cnn14_mAP=0.431.pth \
+	SAMPLERATE=32000 \
+	MODEL_WINSIZE=1024 \
+	STFT_HOPSIZE=320 \
+	N_MELS=64 \
+	MEL_FMIN=50 \
+	MEL_FMAX=14000
+```
+
+Use the settings associated with the selected `MODEL_TYPE`; available model
+classes are defined in `submodules/audioset_tagging_cnn/pytorch/models.py`.
 
 ### Example: specific-app profile with gain tuning
 

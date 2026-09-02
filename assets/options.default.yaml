@@ -9,6 +9,9 @@ LABEL_COLLECTIONS_PATH: null
 LABEL_GAINS: {}
 COLLECTION_GAINS: {}
 MODEL_PATH: models/Cnn9_GMP_64x64_300000_iterations_mAP=0.37.pth
+# Set to true to use a model class from submodules/audioset_tagging_cnn/pytorch/models.py.
+ALL_MODELS: false
+MODEL_TYPE: Cnn14
 
 SAMPLERATE: 32000
 AUDIO_CHUNK_LENGTH: 1024

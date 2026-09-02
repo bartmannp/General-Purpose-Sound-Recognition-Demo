@@ -10,6 +10,7 @@ dependencies = [
     "pyaudio>=0.2.14",
     "soundfile>=0.12.1,<0.14",
     "torch>=2.3,<2.6",
+    "torchlibrosa>=0.1,<0.2",
 ]
 
 [build-system]

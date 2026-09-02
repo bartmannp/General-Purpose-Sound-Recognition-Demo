@@ -56,11 +56,12 @@ class AudioModelInference:
         23.454556, 23.39839,  23.254364, 23.198978])
 
     def __init__(self, model, winsize=1024, stft_hopsize=512, samplerate=32000,
-                 stft_window="hahn", n_mels=64, mel_fmin=50, mel_fmax=14000):
+                 stft_window="hahn", n_mels=64, mel_fmin=50, mel_fmax=14000,
+                 input_is_waveform=False):
         """
-        :param model: A pretrained, ready-to-use PyTorch model that admits a
-          batch of shape ``(b, 64, w)`` and returns a batch of predictions
-          with shape ``(b, num_classes)``.
+                :param model: A pretrained, ready-to-use PyTorch model.
+                :param input_is_waveform: If true, model accepts waveform batches and
+                    returns a PANNs output dictionary with ``clipwise_output``.
         :param winsize: This is the window size for the STFT and mel
           operations. Should match training settings.
         :param samplerate: Audio samplerate. Ideally it should match the one
@@ -72,6 +73,7 @@ class AudioModelInference:
         """
         self.model = model
         self.model.eval()
+        self.input_is_waveform = input_is_waveform
         #
         self.winsize = winsize
         self.stft_hopsize = stft_hopsize
@@ -109,12 +111,18 @@ class AudioModelInference:
         :param wav_arr: 1D audio array (float)
         :returns: Predictions with shape ``(num_output_classes,)``.
         """
-        logmel_spec = self.wav_to_logmel(wav_arr)  # (t, nbins)
         with torch.inference_mode():
-            logmel_spec = torch.from_numpy(
-                logmel_spec.astype(np.float32, copy=False)).unsqueeze(0)
-            # (1, t, nbins)
-            preds = self.model(logmel_spec).to("cpu").numpy().squeeze(axis=0)
+            if self.input_is_waveform:
+                model_input = torch.from_numpy(
+                    np.asarray(wav_arr, dtype=np.float32)).unsqueeze(0)
+            else:
+                logmel_spec = self.wav_to_logmel(wav_arr)
+                model_input = torch.from_numpy(
+                    logmel_spec.astype(np.float32, copy=False)).unsqueeze(0)
+            preds = self.model(model_input)
+            if isinstance(preds, dict):
+                preds = preds["clipwise_output"]
+            preds = preds.to("cpu").numpy().squeeze(axis=0)
         return preds  # shape: (num_classes,)
 
 
