@@ -1,0 +1,3 @@
+[submodule "submodules/audioset_tagging_cnn"]
+	path = submodules/audioset_tagging_cnn
+	url = https://github.com/bartmannp/audioset_tagging_cnn.git
