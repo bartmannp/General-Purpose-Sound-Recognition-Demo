@@ -43,8 +43,11 @@ DEFAULT_CONFIG_CANDIDATES = (
 def load_submodule_model(model_type, sample_rate, window_size, hop_size,
                          mel_bins, fmin, fmax, classes_num):
   """Create a PANNs model defined by the bundled audioset_tagging_cnn module."""
+  bundle_root = getattr(sys, "_MEIPASS", None)
+  if bundle_root is None:
+    bundle_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
   pytorch_dir = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    bundle_root,
     "submodules", "audioset_tagging_cnn", "pytorch")
   models_path = os.path.join(pytorch_dir, "models.py")
   if not os.path.isfile(models_path):
