@@ -330,6 +330,7 @@ class HeadlessDemoApp:
     self.inference_interval = inference_interval
     self.print_interval = print_interval
     self.min_confidence = min_confidence
+    self.model_type = model_type
     self.log_path = log_path
     self.log_handle = None
     self.log_max_minutes = log_max_minutes
@@ -385,6 +386,9 @@ class HeadlessDemoApp:
     self.log_handle = open(resolved_log_path, "a", encoding="utf-8")
     self._active_log_path = resolved_log_path
     self._log_opened_at = time.monotonic()
+    self.log_handle.write(
+      f"[{self._timestamp()}] Model type: {self.model_type}\n")
+    self.log_handle.flush()
 
   def _rotate_log_if_needed(self, now):
     if self.log_handle is None:
